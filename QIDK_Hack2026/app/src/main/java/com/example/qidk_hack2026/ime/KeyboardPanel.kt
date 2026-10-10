@@ -54,11 +54,9 @@ class KeyboardPanel(private val context: Context) {
         visibility = View.GONE
         setOnClickListener { onHint() }
     }
+    private val ringShape = GradientDrawable().apply { shape = GradientDrawable.OVAL }
     private val ring = View(context).apply {
-        background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(color(R.color.ime_record))
-        }
+        background = ringShape
         alpha = 0f
     }
     private val spinner = ProgressBar(context).apply {
@@ -70,7 +68,6 @@ class KeyboardPanel(private val context: Context) {
         scaleType = android.widget.ImageView.ScaleType.CENTER
         contentDescription = "Start or stop dictation"
         setOnClickListener { onMic() }
-        elevation = px(4).toFloat()
     }
     private var pulse: ValueAnimator? = null
 
@@ -78,10 +75,13 @@ class KeyboardPanel(private val context: Context) {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
         setPadding(px(20), px(12), px(20), px(16))
-        background = GradientDrawable().apply {
-            setColor(color(R.color.ime_surface))
-            val r = px(24).toFloat()
+        background = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(color(R.color.ime_surface_top), color(R.color.ime_surface_bottom)),
+        ).apply {
+            val r = px(28).toFloat()
             cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+            setStroke(px(1), color(R.color.ime_stroke))
         }
 
         addView(topRow(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -110,9 +110,12 @@ class KeyboardPanel(private val context: Context) {
         val listening = state == State.LISTENING
         mic.setImageResource(if (listening) R.drawable.ic_stop else R.drawable.ic_mic)
         mic.setColorFilter(color(R.color.ime_on_primary))
-        mic.background = disc(color(if (listening) R.color.ime_record else R.color.ime_primary))
+        val start = color(if (listening) R.color.ime_record else R.color.ime_primary)
+        val end = color(if (listening) R.color.ime_record_end else R.color.ime_primary_end)
+        mic.background = disc(start, end)
+        ringShape.setColor(start)
         mic.alpha = if (state == State.WORKING) 0.45f else 1f
-        if (listening) startPulse()
+        if (listening) startPulse() else restGlow()
         if (state != State.IDLE) hint.visibility = View.GONE
     }
 
@@ -163,7 +166,7 @@ class KeyboardPanel(private val context: Context) {
     }
 
     private fun style(view: TextView, selected: Boolean) {
-        view.background = if (selected) pill(color(R.color.ime_track_selected)) else null
+        view.background = if (selected) pill(color(R.color.ime_track_selected)).apply { setStroke(px(1), color(R.color.ime_stroke)) } else null
         view.setTextColor(color(if (selected) R.color.ime_on_surface else R.color.ime_muted))
         view.typeface = if (selected) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
     }
@@ -173,7 +176,14 @@ class KeyboardPanel(private val context: Context) {
         cornerRadius = px(100).toFloat()
     }
 
-    private fun disc(fill: Int) = ripple(fill, circle = true)
+    /** A gradient disc with a thin highlight edge, so the button reads as a glass bead. */
+    private fun disc(start: Int, end: Int): RippleDrawable {
+        val shape = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(start, end)).apply {
+            this.shape = GradientDrawable.OVAL
+            setStroke(px(1), 0x66FFFFFF)
+        }
+        return RippleDrawable(ColorStateList.valueOf(0x33FFFFFF), shape, shape)
+    }
 
     private fun ripple(fill: Int, circle: Boolean): RippleDrawable {
         val shape = GradientDrawable().apply {
@@ -181,6 +191,12 @@ class KeyboardPanel(private val context: Context) {
             setColor(fill)
         }
         return RippleDrawable(ColorStateList.valueOf(0x33FFFFFF), shape, shape)
+    }
+
+    /** A soft halo behind the idle mic. */
+    private fun restGlow() {
+        ring.scaleX = 1.28f; ring.scaleY = 1.28f
+        ring.alpha = 0.13f
     }
 
     private fun startPulse() {

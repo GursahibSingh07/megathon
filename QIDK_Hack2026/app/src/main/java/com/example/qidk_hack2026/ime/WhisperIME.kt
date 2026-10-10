@@ -39,8 +39,10 @@ class WhisperIME : InputMethodService() {
     private var needsAccessibility = false
     private var needsModel = false
     // Filling a form moves focus between fields, which restarts this keyboard's input; don't let
-    // that restart start another recording.
+    // that restart reset the status message showing the result.
     private var noAutoListenUntil = 0L
+    // Set when the user tapped the mic and was sent to the permission dialog; start once they return.
+    private var resumeAfterPermission = false
 
     private lateinit var panel: KeyboardPanel
 
@@ -48,7 +50,7 @@ class WhisperIME : InputMethodService() {
         formMode = prefs().getBoolean(PREF_FORM_MODE, false)
         panel = KeyboardPanel(this).apply {
             setMode(formMode)
-            modeLocked = { busy || session?.isRecording == true }
+            modeLocked = { busy }
             // The mic always retries (the service or model may be there now); the button under the status
             // line is what sends the user to settings or the app.
             onMic = {
@@ -58,6 +60,12 @@ class WhisperIME : InputMethodService() {
             }
             onHint = { onActionClicked() }
             onModeChanged = {
+                // Switching mid-recording drops that recording; the new mode starts clean.
+                if (session?.isRecording == true) {
+                    cancelSession()
+                    currentInputConnection?.setComposingText("", 1) // drop the live preview text
+                    setIdle(if (it) "Fill form: tap the mic and say the details" else "Dictate: tap the mic and speak")
+                }
                 formMode = it
                 prefs().edit().putBoolean(PREF_FORM_MODE, formMode).apply()
             }
@@ -72,15 +80,27 @@ class WhisperIME : InputMethodService() {
 
     override fun onStartInputView(info: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-        if (!restarting && SystemClock.uptimeMillis() >= noAutoListenUntil) beginListening()
+        // The mic starts off; the user taps it. (Filling a form moves focus and restarts input, so keep the
+        // result message in that case.)
+        if (!restarting && session == null && !busy && SystemClock.uptimeMillis() >= noAutoListenUntil) {
+            setIdle(if (formMode) "Fill form: tap the mic and say the details" else "Tap the mic to speak")
+        }
     }
 
     override fun onWindowShown() {
         super.onWindowShown()
+        // Frosted glass: blur whatever is behind the panel (Android 12+, where the device allows it).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            window.window?.apply {
+                setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+                setBackgroundBlurRadius(BLUR_RADIUS_PX)
+            }
+        }
         // Returning from the permission dialog: start listening without another tap.
-        if (session == null && !busy && SystemClock.uptimeMillis() >= noAutoListenUntil &&
-            hasMicPermission()
-        ) beginListening()
+        if (resumeAfterPermission && session == null && !busy && hasMicPermission()) {
+            resumeAfterPermission = false
+            beginListening()
+        }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
@@ -173,7 +193,8 @@ class WhisperIME : InputMethodService() {
             panel.setState(KeyboardPanel.State.IDLE)
             if (text.isNotBlank()) {
                 currentInputConnection?.commitText(text, 1)
-                switchBack()
+                // Stay on the panel: leaving here made the mode switch unreachable. The keyboard icon leaves.
+                setIdle("Inserted. Tap the mic to continue.")
             } else {
                 currentInputConnection?.setComposingText("", 1)
                 setIdle("Didn't catch that. Tap to try again.")
@@ -237,6 +258,7 @@ class WhisperIME : InputMethodService() {
             PackageManager.PERMISSION_GRANTED
 
     private fun requestMicPermission() {
+        resumeAfterPermission = true
         startActivity(
             Intent(this, PermissionActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
@@ -250,5 +272,6 @@ class WhisperIME : InputMethodService() {
     private companion object {
         const val PREF_FORM_MODE = "form_mode"
         const val AUTO_LISTEN_PAUSE_MS = 4_000L
+        const val BLUR_RADIUS_PX = 60
     }
 }
