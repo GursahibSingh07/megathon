@@ -62,8 +62,9 @@ class DictationSession(
         if (!started) return false
 
         worker = scope.launch {
-            // Overlap the model load with the user starting to talk.
-            WhisperEngine.preload(appContext)
+            // Overlap the model load with the user starting to talk. When the NPU service is up the CPU
+            // model is only a fallback, so don't spend memory and start-up time on it.
+            if (!NpuClient.probe()) WhisperEngine.preload(appContext)
             for (chunk in queue) decodeChunk(chunk)
         }
         previewJob = scope.launch {

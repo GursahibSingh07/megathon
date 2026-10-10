@@ -57,6 +57,17 @@ object NpuClient {
         }
     }
 
+    /** True when the service accepts connections right now. Cheap (one short connect), safe to call often. */
+    suspend fun probe(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            Socket().use { it.connect(InetSocketAddress(HOST, PORT), CONNECT_TIMEOUT_MS) }
+            downUntil = 0L
+            true
+        } catch (e: IOException) {
+            false
+        }
+    }
+
     /** Forget a previous failure, e.g. after the service has been started. */
     fun retryNow() {
         downUntil = 0L

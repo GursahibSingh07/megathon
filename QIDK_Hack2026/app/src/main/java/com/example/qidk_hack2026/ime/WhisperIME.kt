@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import com.example.qidk_hack2026.MainActivity
 import com.example.qidk_hack2026.asr.DictationSession
 import com.example.qidk_hack2026.asr.ModelManager
+import com.example.qidk_hack2026.asr.NpuClient
 import com.example.qidk_hack2026.form.FillResult
 import com.example.qidk_hack2026.form.FormPipeline
 import kotlinx.coroutines.CoroutineScope
@@ -41,6 +42,7 @@ class WhisperIME : InputMethodService() {
     // matched to the form on screen and typed into the right fields (see FormPipeline).
     private var formMode = false
     private var needsAccessibility = false
+    private var needsModel = false
     // Filling a form moves focus between fields, which restarts this keyboard's input; don't let
     // that restart start another recording.
     private var noAutoListenUntil = 0L
@@ -93,7 +95,7 @@ class WhisperIME : InputMethodService() {
         super.onWindowShown()
         // Returning from the permission dialog: start listening without another tap.
         if (session == null && !busy && SystemClock.uptimeMillis() >= noAutoListenUntil &&
-            hasMicPermission() && ModelManager.isReady(this)
+            hasMicPermission()
         ) beginListening()
     }
 
@@ -117,7 +119,7 @@ class WhisperIME : InputMethodService() {
             }
             session?.isRecording == true -> finishListening()
             !hasMicPermission() -> requestMicPermission()
-            !ModelManager.isReady(this) -> openApp()
+            needsModel -> openApp()
             else -> beginListening()
         }
     }
@@ -125,16 +127,26 @@ class WhisperIME : InputMethodService() {
     private fun beginListening() {
         if (busy) return
         partialText.text = ""
-        when {
-            !hasMicPermission() -> {
-                setIdle("Microphone permission needed", "Grant microphone access")
-                return
-            }
-            !ModelManager.isReady(this) -> {
-                setIdle("Whisper model not downloaded", "Open app to download")
-                return
-            }
+        if (!hasMicPermission()) {
+            setIdle("Microphone permission needed", "Grant microphone access")
+            return
         }
+        busy = true // also covers the readiness check below, so a second trigger can't start a second session
+        scope.launch {
+            // Either the on-device CPU model or the NPU service can do the transcription.
+            val ready = ModelManager.isReady(this@WhisperIME) || NpuClient.probe()
+            busy = false
+            if (!ready) {
+                needsModel = true
+                setIdle("Whisper model not downloaded", "Open app to download")
+                return@launch
+            }
+            needsModel = false
+            startSession()
+        }
+    }
+
+    private fun startSession() {
         // Silence after speech ends the dictation, like a voice keyboard should.
         val s = DictationSession(
             this, scope,
