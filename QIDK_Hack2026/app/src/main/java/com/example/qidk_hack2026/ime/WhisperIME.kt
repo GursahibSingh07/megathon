@@ -46,7 +46,11 @@ class WhisperIME : InputMethodService() {
         action = Button(this).apply { setOnClickListener { onActionClicked() } }
         val back = Button(this).apply {
             text = "Back to keyboard"
-            setOnClickListener { cancelSession(); currentInputConnection?.finishComposingText(); switchBack() }
+            setOnClickListener {
+                currentInputConnection?.finishComposingText()
+                switchBack()
+                cancelSession() // after switching, so the keyboard appears without waiting
+            }
         }
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -140,8 +144,9 @@ class WhisperIME : InputMethodService() {
     }
 
     private fun cancelSession() {
-        session?.cancel()
+        val s = session ?: return
         session = null
+        Thread { s.cancel() }.start() // recorder.stop() joins its thread; keep it off the UI thread
     }
 
     private fun setIdle(message: String, actionLabel: String) {
