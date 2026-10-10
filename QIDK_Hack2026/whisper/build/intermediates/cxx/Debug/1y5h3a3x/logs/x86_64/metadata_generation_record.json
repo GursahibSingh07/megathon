@@ -1,0 +1,17 @@
+[
+{
+  "message": "Start JSON generation. Platform version: 26 min SDK version: x86_64",
+  "file": "/home/arushi/AndroidStudioProjects/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "debug|x86_64"
+},
+{
+  "message": "JSON \u0027/home/arushi/AndroidStudioProjects/QIDK_Hack2026/whisper/.cxx/Debug/1y5h3a3x/x86_64/android_gradle_build.json\u0027 was up-to-date",
+  "file": "/home/arushi/AndroidStudioProjects/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "debug|x86_64"
+},
+{
+  "message": "JSON generation completed without problems",
+  "file": "/home/arushi/AndroidStudioProjects/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "debug|x86_64"
+}
+]

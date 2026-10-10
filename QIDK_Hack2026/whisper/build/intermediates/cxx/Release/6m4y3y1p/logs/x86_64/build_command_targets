@@ -1,0 +1,8 @@
+#!/bin/sh
+'/home/arushi/Android/Sdk/cmake/3.22.1/bin/ninja' \
+  '-C' \
+  '/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/.cxx/Release/6m4y3y1p/x86_64' \
+  'ggml' \
+  'ggml-base' \
+  'ggml-cpu' \
+  'whisper'

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="com.example.qidk_hack2026.MainActivity">
+    <!-- imeSubtypeMode="voice" makes keyboards like HeliBoard treat this IME as their mic target;
+         isAuxiliary + overridesImplicitlyEnabledSubtype make Android enable the subtype automatically,
+         which the system requires before it reports it as a voice shortcut. -->
+    <subtype
+        android:label="Whisper Voice"
+        android:imeSubtypeLocale="en_US"
+        android:imeSubtypeMode="voice"
+        android:isAsciiCapable="false"
+        android:isAuxiliary="true"
+        android:overridesImplicitlyEnabledSubtype="true" />
+</input-method>

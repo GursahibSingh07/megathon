@@ -1,0 +1,72 @@
+[
+{
+  "message": "Start JSON generation. Platform version: 26 min SDK version: arm64-v8a",
+  "file": "/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "release|arm64-v8a"
+},
+{
+  "message": "rebuilding JSON /home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/.cxx/Release/6m4y3y1p/arm64-v8a/android_gradle_build.json due to:",
+  "file": "/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "release|arm64-v8a"
+},
+{
+  "message": "- a hard configure file changed, will remove stale configuration folder",
+  "file": "/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "release|arm64-v8a"
+},
+{
+  "message": "  - /home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/.cxx/Release/6m4y3y1p/arm64-v8a/metadata_generation_command.txt (LAST_MODIFIED_CHANGED)",
+  "file": "/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "release|arm64-v8a"
+},
+{
+  "message": "removing stale contents from \u0027/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/.cxx/Release/6m4y3y1p/arm64-v8a\u0027",
+  "file": "/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "release|arm64-v8a"
+},
+{
+  "message": "created folder \u0027/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/.cxx/Release/6m4y3y1p/arm64-v8a\u0027",
+  "file": "/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "release|arm64-v8a"
+},
+{
+  "message": "executing cmake #!/bin/sh\n\u0027/home/arushi/Android/Sdk/cmake/3.22.1/bin/cmake\u0027 \\\n  \u0027-H/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper\u0027 \\\n  \u0027-DCMAKE_SYSTEM_NAME\u003dAndroid\u0027 \\\n  \u0027-DCMAKE_EXPORT_COMPILE_COMMANDS\u003dON\u0027 \\\n  \u0027-DCMAKE_SYSTEM_VERSION\u003d26\u0027 \\\n  \u0027-DANDROID_PLATFORM\u003dandroid-26\u0027 \\\n  \u0027-DANDROID_ABI\u003darm64-v8a\u0027 \\\n  \u0027-DCMAKE_ANDROID_ARCH_ABI\u003darm64-v8a\u0027 \\\n  \u0027-DANDROID_NDK\u003d/home/arushi/Android/Sdk/ndk/27.2.12479018\u0027 \\\n  \u0027-DCMAKE_ANDROID_NDK\u003d/home/arushi/Android/Sdk/ndk/27.2.12479018\u0027 \\\n  \u0027-DCMAKE_TOOLCHAIN_FILE\u003d/home/arushi/Android/Sdk/ndk/27.2.12479018/build/cmake/android.toolchain.cmake\u0027 \\\n  \u0027-DCMAKE_MAKE_PROGRAM\u003d/home/arushi/Android/Sdk/cmake/3.22.1/bin/ninja\u0027 \\\n  \u0027-DCMAKE_LIBRARY_OUTPUT_DIRECTORY\u003d/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/build/intermediates/cxx/Release/6m4y3y1p/obj/arm64-v8a\u0027 \\\n  \u0027-DCMAKE_RUNTIME_OUTPUT_DIRECTORY\u003d/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/build/intermediates/cxx/Release/6m4y3y1p/obj/arm64-v8a\u0027 \\\n  \u0027-B/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/.cxx/Release/6m4y3y1p/arm64-v8a\u0027 \\\n  \u0027-GNinja\u0027 \\\n  \u0027-DCMAKE_BUILD_TYPE\u003dRelease\u0027\n",
+  "file": "/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "release|arm64-v8a"
+},
+{
+  "message": "#!/bin/sh\n\u0027/home/arushi/Android/Sdk/cmake/3.22.1/bin/cmake\u0027 \\\n  \u0027-H/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper\u0027 \\\n  \u0027-DCMAKE_SYSTEM_NAME\u003dAndroid\u0027 \\\n  \u0027-DCMAKE_EXPORT_COMPILE_COMMANDS\u003dON\u0027 \\\n  \u0027-DCMAKE_SYSTEM_VERSION\u003d26\u0027 \\\n  \u0027-DANDROID_PLATFORM\u003dandroid-26\u0027 \\\n  \u0027-DANDROID_ABI\u003darm64-v8a\u0027 \\\n  \u0027-DCMAKE_ANDROID_ARCH_ABI\u003darm64-v8a\u0027 \\\n  \u0027-DANDROID_NDK\u003d/home/arushi/Android/Sdk/ndk/27.2.12479018\u0027 \\\n  \u0027-DCMAKE_ANDROID_NDK\u003d/home/arushi/Android/Sdk/ndk/27.2.12479018\u0027 \\\n  \u0027-DCMAKE_TOOLCHAIN_FILE\u003d/home/arushi/Android/Sdk/ndk/27.2.12479018/build/cmake/android.toolchain.cmake\u0027 \\\n  \u0027-DCMAKE_MAKE_PROGRAM\u003d/home/arushi/Android/Sdk/cmake/3.22.1/bin/ninja\u0027 \\\n  \u0027-DCMAKE_LIBRARY_OUTPUT_DIRECTORY\u003d/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/build/intermediates/cxx/Release/6m4y3y1p/obj/arm64-v8a\u0027 \\\n  \u0027-DCMAKE_RUNTIME_OUTPUT_DIRECTORY\u003d/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/build/intermediates/cxx/Release/6m4y3y1p/obj/arm64-v8a\u0027 \\\n  \u0027-B/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/.cxx/Release/6m4y3y1p/arm64-v8a\u0027 \\\n  \u0027-GNinja\u0027 \\\n  \u0027-DCMAKE_BUILD_TYPE\u003dRelease\u0027\n",
+  "file": "/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "release|arm64-v8a"
+},
+{
+  "message": "Received process result: 0",
+  "file": "/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "release|arm64-v8a"
+},
+{
+  "message": "Exiting generation of /home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/.cxx/Release/6m4y3y1p/arm64-v8a/compile_commands.json.bin normally",
+  "file": "/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "release|arm64-v8a"
+},
+{
+  "message": "done executing cmake",
+  "file": "/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "release|arm64-v8a"
+},
+{
+  "message": "deleted unexpected build output /home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/build/intermediates/cxx/Release/6m4y3y1p/obj/arm64-v8a/libomp.so in incremental regenerate",
+  "file": "/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "release|arm64-v8a"
+},
+{
+  "message": "hard linked /home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/.cxx/Release/6m4y3y1p/arm64-v8a/compile_commands.json to /home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/.cxx/tools/release/arm64-v8a/compile_commands.json",
+  "file": "/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "release|arm64-v8a"
+},
+{
+  "message": "JSON generation completed without problems",
+  "file": "/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/CMakeLists.txt",
+  "tag": "release|arm64-v8a"
+}
+]
