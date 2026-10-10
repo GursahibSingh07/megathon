@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">QIDK_Hack2026</string>
+    <string name="form_service_description">Lets the voice assistant read the form on screen and type your spoken answers into it.</string>
 </resources>
