@@ -1,2 +1,0 @@
-ninja: Entering directory `/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/.cxx/Release/6m4y3y1p/x86_64'
-ninja: no work to do.

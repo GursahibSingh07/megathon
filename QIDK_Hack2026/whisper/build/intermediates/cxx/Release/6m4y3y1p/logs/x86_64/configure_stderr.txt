@@ -1,4 +1,0 @@
-CMake Warning (dev) at CMakeLists.txt:17 (set):
-  Cannot set "WHISPER_VERSION": current scope has no parent.
-This warning is for project developers.  Use -Wno-dev to suppress it.
-
