@@ -57,6 +57,11 @@ object WhisperEngine {
     ): String {
         if (audio.isEmpty()) return ""
         val prepared = AudioPrep.prepare(audio)
+
+        // Fast path: Whisper-Small on the NPU, if its service is running. It takes the audio as is (any
+        // length up to 30 s) and has no previous-text prompt: each prompt token costs a full decoder step.
+        NpuClient.transcribe(prepared)?.let { return it.text.clean() }
+
         val padded = if (prepared.size < MIN_SAMPLES) prepared.copyOf(MIN_SAMPLES) else prepared
         val prompt = context.takeLast(MAX_PROMPT_CHARS).trim().ifEmpty { null }
         return load(appContext).transcribeData(
