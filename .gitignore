@@ -1,0 +1,32 @@
+# Build outputs
+/build/
+/.cxx/
+*/build/
+*.apk
+*.aab
+
+# Gradle
+.gradle/
+gradle-app.setting
+
+# Kotlin
+.kotlin/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.navigation/
+captures/
+
+# Local config (device/SDK paths, secrets)
+local.properties
+
+# Native build intermediates
+.cxx/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
