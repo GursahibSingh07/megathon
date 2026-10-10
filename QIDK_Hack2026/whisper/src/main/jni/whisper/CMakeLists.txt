@@ -88,3 +88,25 @@ include_directories(${WHISPER_LIB_DIR}/ggml/include)
 include_directories(${WHISPER_LIB_DIR}/ggml/src)
 include_directories(${WHISPER_LIB_DIR}/ggml/src/ggml-cpu)
 
+
+# ---- NPU daemon (Whisper-Small on the Hexagon NPU through the Qualcomm AI Runtime) ----
+# Regular Android apps cannot reach the NPU on QIDK builds (libcdsprpc.so is not a public library), so
+# the engine is built as an executable that runs outside the app sandbox and serves the app over a
+# local socket. Built only on arm64 and only when the QAIRT headers are present; they are Qualcomm's
+# and are not in this repository (copy include/QNN from the SDK into whisper/third_party/qairt/include/QNN).
+set(QAIRT_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/qairt/include/QNN)
+if (${ANDROID_ABI} STREQUAL "arm64-v8a" AND EXISTS ${QAIRT_INCLUDE}/QnnInterface.h)
+    add_executable(
+        whisper_npud
+        npu/qnn_runtime.cpp
+        npu/mel.cpp
+        npu/whisper_npu.cpp
+        npu/daemon_main.cpp
+    )
+    target_include_directories(whisper_npud PRIVATE ${QAIRT_INCLUDE} ${QAIRT_INCLUDE}/System npu)
+    target_compile_options(whisper_npud PRIVATE -O3 -ffunction-sections -fdata-sections)
+    target_link_options(whisper_npud PRIVATE -Wl,--gc-sections)
+    target_link_libraries(whisper_npud ${LOG_LIB} dl)
+else ()
+    message(STATUS "QAIRT headers not found; skipping the NPU daemon (CPU transcription only)")
+endif ()
