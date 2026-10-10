@@ -64,6 +64,7 @@ object NpuClient {
             downUntil = 0L
             true
         } catch (e: IOException) {
+            Log.i(TAG, "NPU service probe failed: $e")
             false
         }
     }

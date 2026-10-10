@@ -3,17 +3,12 @@ package com.example.qidk_hack2026.ime
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.inputmethodservice.InputMethodService
 import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
-import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.InputMethodManager
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.example.qidk_hack2026.MainActivity
 import com.example.qidk_hack2026.asr.DictationSession
@@ -47,43 +42,32 @@ class WhisperIME : InputMethodService() {
     // that restart start another recording.
     private var noAutoListenUntil = 0L
 
-    private lateinit var status: TextView
-    private lateinit var partialText: TextView
-    private lateinit var action: Button
-    private lateinit var modeButton: Button
+    private lateinit var panel: KeyboardPanel
 
     override fun onCreateInputView(): View {
-        val dp = resources.displayMetrics.density
-        fun px(v: Int) = (v * dp).toInt()
-
-        status = TextView(this).apply { textSize = 18f; gravity = Gravity.CENTER }
-        partialText = TextView(this)
-        action = Button(this).apply { setOnClickListener { onActionClicked() } }
         formMode = prefs().getBoolean(PREF_FORM_MODE, false)
-        modeButton = Button(this).apply {
-            text = modeLabel()
-            setOnClickListener {
-                if (busy || session?.isRecording == true) return@setOnClickListener
-                formMode = !formMode
-                prefs().edit().putBoolean(PREF_FORM_MODE, formMode).apply()
-                text = modeLabel()
+        panel = KeyboardPanel(this).apply {
+            setMode(formMode)
+            modeLocked = { busy || session?.isRecording == true }
+            // The mic always retries (the service or model may be there now); the button under the status
+            // line is what sends the user to settings or the app.
+            onMic = {
+                needsModel = false
+                needsAccessibility = false
+                onActionClicked()
             }
-        }
-        val back = Button(this).apply {
-            text = "Back to keyboard"
-            setOnClickListener {
+            onHint = { onActionClicked() }
+            onModeChanged = {
+                formMode = it
+                prefs().edit().putBoolean(PREF_FORM_MODE, formMode).apply()
+            }
+            onBack = {
                 currentInputConnection?.finishComposingText()
                 switchBack()
                 cancelSession() // after switching, so the keyboard appears without waiting
             }
         }
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(px(16), px(16), px(16), px(16))
-            setBackgroundColor(Color.parseColor("#F2F2F2"))
-            addView(status); addView(action); addView(modeButton); addView(back)
-        }
+        return panel.root
     }
 
     override fun onStartInputView(info: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
@@ -101,6 +85,7 @@ class WhisperIME : InputMethodService() {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         cancelSession()
+        if (::panel.isInitialized) panel.setState(KeyboardPanel.State.IDLE) // stops the pulse animation
         currentInputConnection?.finishComposingText()
         super.onFinishInputView(finishingInput)
     }
@@ -126,7 +111,6 @@ class WhisperIME : InputMethodService() {
 
     private fun beginListening() {
         if (busy) return
-        partialText.text = ""
         if (!hasMicPermission()) {
             setIdle("Microphone permission needed", "Grant microphone access")
             return
@@ -154,7 +138,7 @@ class WhisperIME : InputMethodService() {
         ) {
             if (formMode) {
                 // The focused field belongs to the form; keep the live text in the panel instead.
-                status.text = "Listening… $it"
+                panel.setStatus("Listening… $it")
             } else {
                 // Live transcript goes into the focused text field itself, not the panel.
                 currentInputConnection?.setComposingText(it, 1)
@@ -162,10 +146,10 @@ class WhisperIME : InputMethodService() {
         }
         if (s.start()) {
             session = s
-            status.text = if (formMode) "Listening… say the details for the form" else "Listening…"
-            action.text = "Done"
+            panel.setState(KeyboardPanel.State.LISTENING)
+            panel.setStatus(if (formMode) "Listening… say the details for the form" else "Listening…")
         } else {
-            setIdle("Couldn't open the microphone", "Try again")
+            setIdle("Couldn't open the microphone. Tap to try again.")
         }
     }
 
@@ -173,12 +157,12 @@ class WhisperIME : InputMethodService() {
         val s = session ?: return
         session = null
         busy = true
-        status.text = "Transcribing…"
-        action.isEnabled = false
+        panel.setState(KeyboardPanel.State.WORKING)
+        panel.setStatus("Transcribing…")
         scope.launch {
             val text = runCatching { s.stop() }.getOrElse {
-                busy = false; action.isEnabled = true
-                setIdle("Transcription failed: ${it.message}", "Try again")
+                busy = false
+                setIdle("Transcription failed. Tap to try again.")
                 return@launch
             }
             if (formMode && text.isNotBlank()) {
@@ -186,45 +170,42 @@ class WhisperIME : InputMethodService() {
                 return@launch
             }
             busy = false
-            action.isEnabled = true
+            panel.setState(KeyboardPanel.State.IDLE)
             if (text.isNotBlank()) {
                 currentInputConnection?.commitText(text, 1)
                 switchBack()
             } else {
                 currentInputConnection?.setComposingText("", 1)
-                setIdle("Didn't catch that", "Try again")
+                setIdle("Didn't catch that. Tap to try again.")
             }
         }
     }
 
     private suspend fun fillForm(transcript: String) {
-        status.text = "Filling the form…"
+        panel.setStatus("Filling the form…")
         noAutoListenUntil = SystemClock.uptimeMillis() + AUTO_LISTEN_PAUSE_MS
         val result = FormPipeline.run(transcript)
         noAutoListenUntil = SystemClock.uptimeMillis() + AUTO_LISTEN_PAUSE_MS
         busy = false
-        action.isEnabled = true
+        panel.setState(KeyboardPanel.State.IDLE)
 
         val missing = result.missing.take(4).joinToString(", ") +
             if (result.missing.size > 4) " and ${result.missing.size - 4} more" else ""
         when (result.status) {
             FillResult.Status.SERVICE_OFF -> {
                 needsAccessibility = true
-                setIdle("Turn on \"Whisper Form Filler\" in Accessibility settings to fill forms", "Open accessibility settings")
+                setIdle("Turn on Whisper Form Filler in Accessibility settings to fill forms", "Open settings")
             }
-            FillResult.Status.NO_FORM -> setIdle("No form found behind the keyboard", "Try again")
+            FillResult.Status.NO_FORM -> setIdle("No form found behind the keyboard. Tap to try again.")
             FillResult.Status.NOTHING_MATCHED ->
-                setIdle("Heard \"$transcript\" but matched no fields." + if (missing.isNotEmpty()) " Empty: $missing" else "", "Speak again")
+                setIdle("Heard \"$transcript\" but matched no fields." + if (missing.isNotEmpty()) " Empty: $missing" else "")
             FillResult.Status.DONE -> setIdle(
                 "Filled ${result.filled} field(s)." +
                     (if (result.failed > 0) " ${result.failed} failed." else "") +
-                    (if (missing.isNotEmpty()) " Still empty: $missing" else " All fields have a value."),
-                if (missing.isNotEmpty()) "Speak the rest" else "Dictate again",
+                    (if (missing.isNotEmpty()) " Still empty: $missing. Tap to speak the rest." else " All fields have a value."),
             )
         }
     }
-
-    private fun modeLabel() = if (formMode) "Mode: fill form (tap for dictation)" else "Mode: dictation (tap for form fill)"
 
     private fun prefs() = getSharedPreferences("ime", MODE_PRIVATE)
 
@@ -234,9 +215,10 @@ class WhisperIME : InputMethodService() {
         Thread { s.cancel() }.start() // recorder.stop() joins its thread; keep it off the UI thread
     }
 
-    private fun setIdle(message: String, actionLabel: String) {
-        status.text = message
-        action.text = actionLabel
+    /** Shows [message] and goes back to idle. [actionLabel] becomes a button only when the user has to do something. */
+    private fun setIdle(message: String, actionLabel: String? = null) {
+        panel.setState(KeyboardPanel.State.IDLE)
+        panel.setStatus(message, actionLabel)
     }
 
     private fun switchBack() {

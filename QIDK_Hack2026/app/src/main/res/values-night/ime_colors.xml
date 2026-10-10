@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ime_surface">#FF16181C</color>
+    <color name="ime_on_surface">#FFE6E7EA</color>
+    <color name="ime_muted">#FF9CA0A8</color>
+    <color name="ime_primary">#FF8DA2FF</color>
+    <color name="ime_on_primary">#FF0B1033</color>
+    <color name="ime_record">#FFFF6B70</color>
+    <color name="ime_track">#FF262930</color>
+    <color name="ime_track_selected">#FF3A3F4D</color>
+</resources>
