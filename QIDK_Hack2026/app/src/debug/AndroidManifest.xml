@@ -9,5 +9,8 @@
         <receiver
             android:name=".form.DebugReplayReceiver"
             android:exported="true" />
+        <receiver
+            android:name=".asr.DebugBenchReceiver"
+            android:exported="true" />
     </application>
 </manifest>
