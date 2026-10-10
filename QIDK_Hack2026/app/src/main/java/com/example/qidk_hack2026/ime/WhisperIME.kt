@@ -42,21 +42,22 @@ class WhisperIME : InputMethodService() {
         fun px(v: Int) = (v * dp).toInt()
 
         status = TextView(this).apply { textSize = 18f; gravity = Gravity.CENTER }
-        partialText = TextView(this).apply {
-            textSize = 14f; gravity = Gravity.CENTER; maxLines = 3
-            setTextColor(Color.GRAY)
-        }
+        partialText = TextView(this)
         action = Button(this).apply { setOnClickListener { onActionClicked() } }
         val back = Button(this).apply {
             text = "Back to keyboard"
-            setOnClickListener { cancelSession(); switchBack() }
+            setOnClickListener {
+                currentInputConnection?.finishComposingText()
+                switchBack()
+                cancelSession() // after switching, so the keyboard appears without waiting
+            }
         }
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(px(16), px(16), px(16), px(16))
             setBackgroundColor(Color.parseColor("#F2F2F2"))
-            addView(status); addView(partialText); addView(action); addView(back)
+            addView(status); addView(action); addView(back)
         }
     }
 
@@ -73,6 +74,7 @@ class WhisperIME : InputMethodService() {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         cancelSession()
+        currentInputConnection?.finishComposingText()
         super.onFinishInputView(finishingInput)
     }
 
@@ -108,7 +110,10 @@ class WhisperIME : InputMethodService() {
         val s = DictationSession(
             this, scope,
             onAutoStop = { scope.launch { if (session?.isRecording == true) finishListening() } },
-        ) { partialText.text = it }
+        ) {
+            // Live transcript goes into the focused text field itself, not the panel.
+            currentInputConnection?.setComposingText(it, 1)
+        }
         if (s.start()) {
             session = s
             status.text = "Listening…"
@@ -136,14 +141,16 @@ class WhisperIME : InputMethodService() {
                 currentInputConnection?.commitText(text, 1)
                 switchBack()
             } else {
+                currentInputConnection?.setComposingText("", 1)
                 setIdle("Didn't catch that", "Try again")
             }
         }
     }
 
     private fun cancelSession() {
-        session?.cancel()
+        val s = session ?: return
         session = null
+        Thread { s.cancel() }.start() // recorder.stop() joins its thread; keep it off the UI thread
     }
 
     private fun setIdle(message: String, actionLabel: String) {

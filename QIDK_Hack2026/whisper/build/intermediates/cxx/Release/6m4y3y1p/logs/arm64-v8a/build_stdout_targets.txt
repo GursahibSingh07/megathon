@@ -1,28 +1,2 @@
 ninja: Entering directory `/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/.cxx/Release/6m4y3y1p/arm64-v8a'
-[1/38] Building CXX object CMakeFiles/whisper.dir/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/third_party/whisper.cpp/src/aneforge/whisper-aneforge.cpp.o
-[2/38] Building CXX object CMakeFiles/whisper_v8fp16_va.dir/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/third_party/whisper.cpp/src/aneforge/whisper-aneforge.cpp.o
-[3/38] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/hbm.cpp.o
-[4/38] Building C object CMakeFiles/whisper_v8fp16_va.dir/jni.c.o
-/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/jni.c:94:15: warning: 'whisper_init' is deprecated: use whisper_init_with_params instead [-Wdeprecated-declarations]
-   94 |     context = whisper_init(&loader);
-      |               ^
-/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/../../../../third_party/whisper.cpp/include/whisper.h:224:5: note: 'whisper_init' has been explicitly marked deprecated here
-  224 |     WHISPER_DEPRECATED(
-      |     ^
-/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/../../../../third_party/whisper.cpp/include/whisper.h:12:64: note: expanded from macro 'WHISPER_DEPRECATED'
-   12 | #    define WHISPER_DEPRECATED(func, hint) func __attribute__((deprecated(hint)))
-      |                                                                ^
-1 warning generated.
-[5/38] Building C object CMakeFiles/whisper.dir/jni.c.o
-/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/jni.c:94:15: warning: 'whisper_init' is deprecated: use whisper_init_with_params instead [-Wdeprecated-declarations]
-   94 |     context = whisper_init(&loader);
-      |               ^
-/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/../../../../third_party/whisper.cpp/include/whisper.h:224:5: note: 'whisper_init' has been explicitly marked deprecated here
-  224 |     WHISPER_DEPRECATED(
-      |     ^
-/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/src/main/jni/whisper/../../../../third_party/whisper.cpp/include/whisper.h:12:64: note: expanded from macro 'WHISPER_DEPRECATED'
-   12 | #    define WHISPER_DEPRECATED(func, hint) func __attribute__((deprecated(hint)))
-      |                                                                ^
-1 warning generated.
-[6/38] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-base.dir/ggml-threading.cpp.o
-[7/38] Building C object _deps/ggml-build/src/CMakeFiles/ggml-base.dir/ggml-alloc.c.o
+ninja: no work to do.
