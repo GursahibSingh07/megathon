@@ -19,7 +19,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "whisper_npu.hpp"
@@ -64,6 +66,33 @@ std::string describe(const npu::Stats& st) {
     return buf;
 }
 
+void serveClient(int fd, npu::WhisperNpu& engine, std::mutex& engineLock) {
+    uint32_t n;
+    while (readAll(fd, &n, 4)) {
+        if (n == 0 || n > kMaxSamples) {
+            sendResponse(fd, 2, "", "bad sample count");
+            break;
+        }
+        std::vector<float> pcm(n);
+        if (!readAll(fd, pcm.data(), static_cast<size_t>(n) * 4)) break;
+
+        npu::Stats st;
+        std::string err, text;
+        {
+            std::lock_guard<std::mutex> lock(engineLock);
+            text = engine.transcribe(pcm.data(), static_cast<int>(n), &st, &err);
+        }
+        if (!err.empty()) {
+            if (!sendResponse(fd, 1, "", err)) break;
+            continue;
+        }
+        std::printf("%u samples -> \"%s\" [%s]\n", n, text.c_str(), describe(st).c_str());
+        std::fflush(stdout);
+        if (!sendResponse(fd, 0, text, describe(st))) break;
+    }
+    close(fd);
+}
+
 void serve(npu::WhisperNpu& engine, int port) {
     signal(SIGPIPE, SIG_IGN);
     int srv = socket(AF_INET, SOCK_STREAM, 0);
@@ -73,39 +102,21 @@ void serve(npu::WhisperNpu& engine, int port) {
     addr.sin_family = AF_INET;
     addr.sin_port = htons(static_cast<uint16_t>(port));
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);  // this device only
-    if (bind(srv, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0 || listen(srv, 4) != 0) {
+    if (bind(srv, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0 || listen(srv, 16) != 0) {
         std::perror("bind/listen");
         std::exit(1);
     }
     std::printf("listening on 127.0.0.1:%d\n", port);
     std::fflush(stdout);
 
+    // One thread per client, so an idle connection (clients keep theirs open) never blocks another app.
+    // The NPU graphs are shared, so only one transcription runs at a time.
+    std::mutex engineLock;
     for (;;) {
         int fd = accept(srv, nullptr, nullptr);
         if (fd < 0) continue;
         setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
-
-        uint32_t n;
-        while (readAll(fd, &n, 4)) {
-            if (n == 0 || n > kMaxSamples) {
-                sendResponse(fd, 2, "", "bad sample count");
-                break;
-            }
-            std::vector<float> pcm(n);
-            if (!readAll(fd, pcm.data(), static_cast<size_t>(n) * 4)) break;
-
-            npu::Stats st;
-            std::string err;
-            const std::string text = engine.transcribe(pcm.data(), static_cast<int>(n), &st, &err);
-            if (!err.empty()) {
-                if (!sendResponse(fd, 1, "", err)) break;
-                continue;
-            }
-            std::printf("%u samples -> \"%s\" [%s]\n", n, text.c_str(), describe(st).c_str());
-            std::fflush(stdout);
-            if (!sendResponse(fd, 0, text, describe(st))) break;
-        }
-        close(fd);
+        std::thread([fd, &engine, &engineLock] { serveClient(fd, engine, engineLock); }).detach();
     }
 }
 
