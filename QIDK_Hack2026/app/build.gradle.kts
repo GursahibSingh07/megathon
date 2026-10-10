@@ -16,6 +16,7 @@ android {
         versionCode = 1
         versionName = "1.0"
 
+        ndk { abiFilters += "arm64-v8a" } // QNN/HTP only exists for arm64
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -31,6 +32,13 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    packaging {
+        // QNN loads its backend libs (libQnnHtp*.so) by file path, so they must be extracted to disk.
+        jniLibs.useLegacyPackaging = true
+    }
+    androidResources {
+        noCompress += listOf("onnx")
+    }
     buildFeatures {
         compose = true
     }
@@ -39,6 +47,7 @@ android {
 dependencies {
     implementation(project(":whisper"))
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.onnxruntime.android.qnn)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)

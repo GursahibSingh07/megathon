@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import com.example.qidk_hack2026.MainActivity
 import com.example.qidk_hack2026.asr.DictationSession
 import com.example.qidk_hack2026.asr.ModelManager
+import com.example.qidk_hack2026.tts.PiperTts
 import com.example.qidk_hack2026.form.FillResult
 import com.example.qidk_hack2026.form.FormPipeline
 import kotlinx.coroutines.CoroutineScope
@@ -48,6 +49,7 @@ class WhisperIME : InputMethodService() {
     private lateinit var status: TextView
     private lateinit var partialText: TextView
     private lateinit var action: Button
+    private lateinit var speakButton: Button
     private lateinit var modeButton: Button
 
     override fun onCreateInputView(): View {
@@ -75,12 +77,16 @@ class WhisperIME : InputMethodService() {
                 cancelSession() // after switching, so the keyboard appears without waiting
             }
         }
+        val speak = Button(this).apply {
+            text = "Read text aloud"
+            setOnClickListener { speakFieldText(this) }
+        }.also { speakButton = it }
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(px(16), px(16), px(16), px(16))
             setBackgroundColor(Color.parseColor("#F2F2F2"))
-            addView(status); addView(action); addView(modeButton); addView(back)
+            addView(status); addView(action); addView(speak); addView(modeButton); addView(back)
         }
     }
 
@@ -104,6 +110,7 @@ class WhisperIME : InputMethodService() {
     }
 
     override fun onDestroy() {
+        PiperTts.stop()
         cancelSession()
         scope.cancel()
         super.onDestroy()
@@ -124,6 +131,11 @@ class WhisperIME : InputMethodService() {
 
     private fun beginListening() {
         if (busy) return
+        if (PiperTts.isSpeaking) {
+            // Block speech-to-text while text-to-speech plays, or the mic would transcribe the speaker.
+            setIdle("Speech is playing", "Try again when it ends")
+            return
+        }
         partialText.text = ""
         when {
             !hasMicPermission() -> {
@@ -150,6 +162,7 @@ class WhisperIME : InputMethodService() {
         }
         if (s.start()) {
             session = s
+            updateSpeakButton()
             status.text = if (formMode) "Listening… say the details for the form" else "Listening…"
             action.text = "Done"
         } else {
@@ -161,11 +174,12 @@ class WhisperIME : InputMethodService() {
         val s = session ?: return
         session = null
         busy = true
+        updateSpeakButton()
         status.text = "Transcribing…"
         action.isEnabled = false
         scope.launch {
             val text = runCatching { s.stop() }.getOrElse {
-                busy = false; action.isEnabled = true
+                busy = false; action.isEnabled = true; updateSpeakButton()
                 setIdle("Transcription failed: ${it.message}", "Try again")
                 return@launch
             }
@@ -175,6 +189,7 @@ class WhisperIME : InputMethodService() {
             }
             busy = false
             action.isEnabled = true
+            updateSpeakButton()
             if (text.isNotBlank()) {
                 currentInputConnection?.commitText(text, 1)
                 switchBack()
@@ -216,9 +231,28 @@ class WhisperIME : InputMethodService() {
 
     private fun prefs() = getSharedPreferences("ime", MODE_PRIVATE)
 
+    /** Reads the text before the cursor in the focused field with the Piper (NPU) voice. */
+    private fun speakFieldText(button: Button) {
+        if (PiperTts.isSpeaking) { PiperTts.stop(); return }
+        if (session != null || busy) return // don't speak while the mic is open
+        val text = currentInputConnection?.getTextBeforeCursor(2000, 0)?.toString().orEmpty()
+        if (text.isBlank()) { status.text = "Nothing to read"; return }
+        button.text = "Stop reading"
+        scope.launch {
+            runCatching { PiperTts.speak(this@WhisperIME, text) }
+                .onFailure { status.text = "Speech failed: ${it.message}" }
+            button.text = "Read text aloud"
+        }
+    }
+
+    private fun updateSpeakButton() {
+        speakButton.isEnabled = session == null && !busy
+    }
+
     private fun cancelSession() {
         val s = session ?: return
         session = null
+        if (::speakButton.isInitialized) updateSpeakButton()
         Thread { s.cancel() }.start() // recorder.stop() joins its thread; keep it off the UI thread
     }
 

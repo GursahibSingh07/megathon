@@ -13,6 +13,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -39,6 +40,7 @@ import androidx.core.content.ContextCompat
 import com.example.qidk_hack2026.asr.DictationSession
 import com.example.qidk_hack2026.asr.ModelManager
 import com.example.qidk_hack2026.asr.WhisperEngine
+import com.example.qidk_hack2026.tts.PiperTts
 import com.example.qidk_hack2026.ui.theme.QIDK_Hack2026Theme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -119,12 +121,27 @@ private fun DictationScreen(modifier: Modifier = Modifier) {
                 "2. Select HeliBoard as your keyboard; its mic key will switch to Whisper.",
             style = MaterialTheme.typography.bodySmall,
         )
-        OutlinedButton(onClick = {
-            context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
-        }) { Text("Enable keyboards") }
-        OutlinedButton(onClick = {
-            (context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
-        }) { Text("Choose keyboard") }
+        var speaking by remember { mutableStateOf(false) }
+        var ttsBackend by remember { mutableStateOf(PiperTts.backend) }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(onClick = {
+                context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+            }) { Text("Enable keyboards") }
+            Button(
+                enabled = testField.isNotBlank(),
+                onClick = {
+                    if (speaking) { PiperTts.stop(); return@Button }
+                    speaking = true
+                    scope.launch {
+                        runCatching { PiperTts.speak(appContext, testField) }
+                            .onFailure { error = "Speech failed: ${it.message}" }
+                        ttsBackend = PiperTts.backend
+                        speaking = false
+                    }
+                },
+            ) { Text(if (speaking) "Stop" else "Speak text") }
+        }
+        Text("Speech engine: $ttsBackend", style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(
             value = testField, onValueChange = { testField = it },
             label = { Text("Tap here, then use the keyboard's mic key") },
