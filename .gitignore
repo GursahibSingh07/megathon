@@ -1,3 +1,4 @@
+```gitignore
 # Build outputs
 /build/
 /.cxx/
@@ -30,3 +31,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Ignore voice-input-master directory
+voice-input-master/
+```

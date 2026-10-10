@@ -1,0 +1,22 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Build output in every module (the root-only /build above missed app/build and whisper/build)
+build/
+
+# Qualcomm AI Runtime files (headers, libs, sample code) are pulled from the board and must not be redistributed
+whisper/third_party/qairt/
+whisper/src/qnn/jniLibs/
