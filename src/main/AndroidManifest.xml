@@ -21,6 +21,39 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MaterialComponents.Light.NoActionBar">
+
+        <!-- Service 1: only reads the screen and logs the [ID: n] layout (tag: LlamaContext) -->
+        <service
+            android:name=".autofill.NodeScannerService"
+            android:label="Node Scanner"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- Service 2: only reads form_actions.json and fills the form (tag: VoiceFill) -->
+        <service
+            android:name=".autofill.VoiceFillAccessibilityService"
+            android:label="Voice Fill"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/voice_fill_accessibility_service" />
+        </service>
+
         <activity
             android:name=".activity.FileContentActivity"
             android:exported="false" />
@@ -31,6 +64,7 @@
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
