@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Phase { NoModel, Downloading, Loading, Idle, Recording, Transcribing }
+private enum class Phase { NoModel, Downloading, Loading, Idle }
 
 @Composable
 private fun DictationScreen(modifier: Modifier = Modifier) {
@@ -71,13 +71,8 @@ private fun DictationScreen(modifier: Modifier = Modifier) {
         mutableStateOf(if (ModelManager.isReady(appContext)) Phase.Loading else Phase.NoModel)
     }
     var progress by remember { mutableFloatStateOf(0f) }
-    var transcript by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var testField by remember { mutableStateOf("") }
-
-    val session = remember {
-        DictationSession(appContext, scope) { partial -> transcript = partial }
-    }
 
     // Load the model into memory as soon as it's on disk.
     androidx.compose.runtime.LaunchedEffect(phase) {
@@ -86,16 +81,6 @@ private fun DictationScreen(modifier: Modifier = Modifier) {
                 .onSuccess { phase = Phase.Idle }
                 .onFailure { error = "Failed to load model: ${it.message}"; phase = Phase.NoModel }
         }
-    }
-
-    fun startRecording() {
-        error = null
-        transcript = ""
-        if (session.start()) phase = Phase.Recording else error = "Couldn't open the microphone"
-    }
-
-    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        if (it) startRecording() else error = "Microphone permission is required"
     }
 
     Column(
@@ -123,40 +108,10 @@ private fun DictationScreen(modifier: Modifier = Modifier) {
 
             Phase.Loading -> Text("Loading model…")
 
-            Phase.Idle, Phase.Recording, Phase.Transcribing -> Button(
-                enabled = phase != Phase.Transcribing,
-                onClick = {
-                    if (phase == Phase.Recording) {
-                        phase = Phase.Transcribing
-                        scope.launch {
-                            transcript = runCatching { session.stop() }
-                                .getOrElse { error = "Transcription failed: ${it.message}"; transcript }
-                            phase = Phase.Idle
-                        }
-                    } else if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.RECORD_AUDIO)
-                        == PackageManager.PERMISSION_GRANTED
-                    ) startRecording()
-                    else micPermission.launch(Manifest.permission.RECORD_AUDIO)
-                },
-            ) {
-                Text(
-                    when (phase) {
-                        Phase.Recording -> "Stop"
-                        Phase.Transcribing -> "Transcribing…"
-                        else -> "Start listening"
-                    }
-                )
-            }
+            Phase.Idle -> Text("Model ready. Tap the text box below, then use the keyboard's mic key.")
         }
 
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-
-        SelectionContainer(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
-            Text(
-                transcript.ifEmpty { "Transcript will appear here." },
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
 
         Text("Keyboard setup", style = MaterialTheme.typography.titleSmall)
         Text(
@@ -172,8 +127,8 @@ private fun DictationScreen(modifier: Modifier = Modifier) {
         }) { Text("Choose keyboard") }
         OutlinedTextField(
             value = testField, onValueChange = { testField = it },
-            label = { Text("Test field — tap, then use the keyboard's mic") },
-            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Tap here, then use the keyboard's mic key") },
+            modifier = Modifier.fillMaxWidth().weight(1f),
         )
     }
 }

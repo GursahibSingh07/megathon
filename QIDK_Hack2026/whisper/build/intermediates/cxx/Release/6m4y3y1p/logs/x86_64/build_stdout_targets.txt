@@ -1,27 +1,2 @@
 ninja: Entering directory `/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/.cxx/Release/6m4y3y1p/x86_64'
-[1/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/amx/amx.cpp.o
-[2/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/amx/mmq.cpp.o
-[3/26] Building C object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/quants.c.o
-[4/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-base.dir/ggml-opt.cpp.o
-[5/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml.dir/ggml-backend-reg.cpp.o
-[6/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/ggml-cpu.cpp.o
-[7/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/vec.cpp.o
-[8/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/tiled/tiled-kernel.cpp.o
-[9/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o
-[10/26] Building C object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/arch/x86/quants.c.o
-[11/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/arch/x86/repack.cpp.o
-[12/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/tiled/tiled.cpp.o
-[13/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/traits.cpp.o
-[14/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-base.dir/ggml-backend-meta.cpp.o
-[15/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/binary-ops.cpp.o
-[16/26] Building C object _deps/ggml-build/src/CMakeFiles/ggml-base.dir/ggml.c.o
-[17/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/unary-ops.cpp.o
-[18/26] Building C object _deps/ggml-build/src/CMakeFiles/ggml-base.dir/ggml-quants.c.o
-[19/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-base.dir/gguf.cpp.o
-[20/26] Linking CXX shared library /home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/build/intermediates/cxx/Release/6m4y3y1p/obj/x86_64/libggml-base.so
-[21/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/repack.cpp.o
-[22/26] Building CXX object _deps/ggml-build/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/ops.cpp.o
-[23/26] Linking CXX shared library /home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/build/intermediates/cxx/Release/6m4y3y1p/obj/x86_64/libggml-cpu.so
-[24/26] Linking CXX shared library /home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/build/intermediates/cxx/Release/6m4y3y1p/obj/x86_64/libggml.so
-[25/26] Building CXX object CMakeFiles/whisper.dir/home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/third_party/whisper.cpp/src/whisper.cpp.o
-[26/26] Linking CXX shared library /home/arushi/AndroidStudioProjects/megathon/QIDK_Hack2026/whisper/build/intermediates/cxx/Release/6m4y3y1p/obj/x86_64/libwhisper.so
+ninja: no work to do.
