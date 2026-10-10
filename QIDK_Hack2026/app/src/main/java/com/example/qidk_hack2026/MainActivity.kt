@@ -190,7 +190,7 @@ private fun android.content.Context.debugLogShortcutIme() {
         })
         imm.enabledInputMethodList.forEach { imi ->
             val subs = imm.getEnabledInputMethodSubtypeList(imi, true)
-            android.util.Log.w("SHORTCUTDBG", "${imi.id} sys=${imi.isSystem} enabledSubtypes=" + subs.joinToString { it.mode + "/" + it.locale })
+            android.util.Log.w("SHORTCUTDBG", "${imi.id} enabledSubtypes=" + subs.joinToString { it.mode + "/" + it.locale })
         }
     } catch (e: Throwable) {
         android.util.Log.w("SHORTCUTDBG", "failed", e)

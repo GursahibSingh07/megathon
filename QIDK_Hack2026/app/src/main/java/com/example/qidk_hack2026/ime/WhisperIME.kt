@@ -65,6 +65,12 @@ class WhisperIME : InputMethodService() {
         if (!restarting) beginListening()
     }
 
+    override fun onWindowShown() {
+        super.onWindowShown()
+        // Returning from the permission dialog: start listening without another tap.
+        if (session == null && !busy && hasMicPermission() && ModelManager.isReady(this)) beginListening()
+    }
+
     override fun onFinishInputView(finishingInput: Boolean) {
         cancelSession()
         super.onFinishInputView(finishingInput)
@@ -79,7 +85,7 @@ class WhisperIME : InputMethodService() {
     private fun onActionClicked() {
         when {
             session?.isRecording == true -> finishListening()
-            !hasMicPermission() -> openApp()
+            !hasMicPermission() -> requestMicPermission()
             !ModelManager.isReady(this) -> openApp()
             else -> beginListening()
         }
@@ -90,7 +96,7 @@ class WhisperIME : InputMethodService() {
         partialText.text = ""
         when {
             !hasMicPermission() -> {
-                setIdle("Microphone permission needed", "Open app to grant")
+                setIdle("Microphone permission needed", "Grant microphone access")
                 return
             }
             !ModelManager.isReady(this) -> {
@@ -155,6 +161,13 @@ class WhisperIME : InputMethodService() {
     private fun hasMicPermission() =
         ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
+
+    private fun requestMicPermission() {
+        startActivity(
+            Intent(this, PermissionActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        )
+    }
 
     private fun openApp() {
         startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
