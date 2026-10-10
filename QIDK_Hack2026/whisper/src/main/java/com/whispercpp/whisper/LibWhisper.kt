@@ -16,11 +16,23 @@ class WhisperContext private constructor(private var ptr: Long) {
         Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     )
 
-    suspend fun transcribeData(data: FloatArray, printTimestamp: Boolean = true): String = withContext(scope.coroutineContext) {
+    /**
+     * @param prompt text that precedes this audio (previous words); biases vocabulary and style.
+     * @param beamSize 1 = greedy (fast); >1 = beam search (more accurate, slower).
+     * @param audioCtxFloor minimum encoder frames (20 ms each) when trimming the 30 s window to
+     *   the real audio length. 0 disables trimming. Lower is faster but needs a model fine-tuned
+     *   for short contexts to stay accurate; the default is conservative for stock models.
+     */
+    suspend fun transcribeData(
+        data: FloatArray,
+        printTimestamp: Boolean = true,
+        prompt: String? = null,
+        beamSize: Int = 1,
+        audioCtxFloor: Int = 0,
+    ): String = withContext(scope.coroutineContext) {
         require(ptr != 0L)
         val numThreads = WhisperCpuConfig.preferredThreadCount
-        Log.d(LOG_TAG, "Selecting $numThreads threads")
-        WhisperLib.fullTranscribe(ptr, numThreads, data)
+        WhisperLib.fullTranscribe(ptr, numThreads, data, prompt, beamSize, audioCtxFloor)
         val textCount = WhisperLib.getTextSegmentCount(ptr)
         return@withContext buildString {
             for (i in 0 until textCount) {
@@ -134,7 +146,10 @@ private class WhisperLib {
         external fun initContextFromAsset(assetManager: AssetManager, assetPath: String): Long
         external fun initContext(modelPath: String): Long
         external fun freeContext(contextPtr: Long)
-        external fun fullTranscribe(contextPtr: Long, numThreads: Int, audioData: FloatArray)
+        external fun fullTranscribe(
+            contextPtr: Long, numThreads: Int, audioData: FloatArray,
+            prompt: String?, beamSize: Int, audioCtxFloor: Int,
+        )
         external fun getTextSegmentCount(contextPtr: Long): Int
         external fun getTextSegment(contextPtr: Long, index: Int): String
         external fun getTextSegmentT0(contextPtr: Long, index: Int): Long

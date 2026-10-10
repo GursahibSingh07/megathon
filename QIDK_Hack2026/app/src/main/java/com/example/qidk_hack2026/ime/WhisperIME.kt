@@ -104,7 +104,11 @@ class WhisperIME : InputMethodService() {
                 return
             }
         }
-        val s = DictationSession(this, scope) { partialText.text = it }
+        // Silence after speech ends the dictation, like a voice keyboard should.
+        val s = DictationSession(
+            this, scope,
+            onAutoStop = { scope.launch { if (session?.isRecording == true) finishListening() } },
+        ) { partialText.text = it }
         if (s.start()) {
             session = s
             status.text = "Listening…"

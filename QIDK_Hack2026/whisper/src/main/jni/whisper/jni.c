@@ -161,35 +161,71 @@ Java_com_whispercpp_whisper_WhisperLib_00024Companion_freeContext(
     whisper_free(context);
 }
 
+// Whisper's encoder frame is 20 ms = 320 samples at 16 kHz; 1500 frames = the full 30 s window.
+#define SAMPLES_PER_AUDIO_CTX 320
+#define FULL_AUDIO_CTX 1500
+
 JNIEXPORT void JNICALL
 Java_com_whispercpp_whisper_WhisperLib_00024Companion_fullTranscribe(
-        JNIEnv *env, jobject thiz, jlong context_ptr, jint num_threads, jfloatArray audio_data) {
+        JNIEnv *env, jobject thiz, jlong context_ptr, jint num_threads, jfloatArray audio_data,
+        jstring prompt_str, jint beam_size, jint audio_ctx_floor) {
     UNUSED(thiz);
     struct whisper_context *context = (struct whisper_context *) context_ptr;
     jfloat *audio_data_arr = (*env)->GetFloatArrayElements(env, audio_data, NULL);
     const jsize audio_data_length = (*env)->GetArrayLength(env, audio_data);
 
-    // The below adapted from the Objective-C iOS sample
-    struct whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
-    params.print_realtime = true;
+    const int use_beam = beam_size > 1;
+    struct whisper_full_params params = whisper_full_default_params(
+            use_beam ? WHISPER_SAMPLING_BEAM_SEARCH : WHISPER_SAMPLING_GREEDY);
+    if (use_beam) params.beam_search.beam_size = beam_size;
+    else params.greedy.best_of = 1;
+
+    // No console/log work on the hot path.
+    params.print_realtime = false;
     params.print_progress = false;
-    params.print_timestamps = true;
+    params.print_timestamps = false;
     params.print_special = false;
+
     params.translate = false;
     params.language = "en";
     params.n_threads = num_threads;
     params.offset_ms = 0;
-    params.no_context = true;
-    params.single_segment = false;
+    params.single_segment = true;      // callers send one VAD-bounded utterance at a time
+    params.no_timestamps = true;       // we only need text; skips timestamp-token decoding
+
+    // Dictation is always short, so don't re-decode at higher temperatures on low confidence:
+    // that is what causes latency spikes. Hallucination is handled by VAD gating + suppression.
+    params.temperature = 0.0f;
+    params.temperature_inc = 0.0f;
+    params.suppress_blank = true;
+    params.suppress_nst = true;
+    params.no_speech_thold = 0.6f;
+    params.max_tokens = 224;
+
+    // Previous text biases spelling/casing/vocabulary and keeps sentences coherent across chunks.
+    const char *prompt = prompt_str ? (*env)->GetStringUTFChars(env, prompt_str, NULL) : NULL;
+    if (prompt && prompt[0] != '\0') {
+        params.initial_prompt = prompt;
+        params.no_context = false;
+    } else {
+        params.no_context = true;
+    }
+
+    // Encode only as much of the 30 s window as the audio needs. Whisper is trained on full
+    // windows, so a floor keeps accuracy sane on stock (non-fine-tuned) models; pass 0 or a
+    // value >= 1500 to disable trimming.
+    params.audio_ctx = 0;
+    if (audio_ctx_floor > 0 && audio_ctx_floor < FULL_AUDIO_CTX) {
+        int needed = (audio_data_length + SAMPLES_PER_AUDIO_CTX - 1) / SAMPLES_PER_AUDIO_CTX + 64;
+        int ctx = max(needed, audio_ctx_floor);
+        if (ctx < FULL_AUDIO_CTX) params.audio_ctx = ctx;
+    }
 
     whisper_reset_timings(context);
-
-    LOGI("About to run whisper_full");
     if (whisper_full(context, params, audio_data_arr, audio_data_length) != 0) {
-        LOGI("Failed to run the model");
-    } else {
-        whisper_print_timings(context);
+        LOGW("whisper_full failed");
     }
+    if (prompt) (*env)->ReleaseStringUTFChars(env, prompt_str, prompt);
     (*env)->ReleaseFloatArrayElements(env, audio_data, audio_data_arr, JNI_ABORT);
 }
 
