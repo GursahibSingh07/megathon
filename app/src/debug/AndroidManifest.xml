@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Debug builds only: lets `adb shell am broadcast` feed a typed sentence into the form
+             pipeline, standing in for speech. Not present in release builds. -->
+        <receiver
+            android:name=".form.DebugFillReceiver"
+            android:exported="true" />
+        <receiver
+            android:name=".form.DebugReplayReceiver"
+            android:exported="true" />
+        <receiver
+            android:name=".asr.DebugBenchReceiver"
+            android:exported="true" />
+    </application>
+</manifest>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ime_surface_top">#D9323848</color>
+    <color name="ime_surface_bottom">#C0171A22</color>
+    <color name="ime_stroke">#33FFFFFF</color>
+    <color name="ime_on_surface">#FFE9EAEE</color>
+    <color name="ime_muted">#FFA3A8B3</color>
+    <color name="ime_primary">#FF7C93FF</color>
+    <color name="ime_primary_end">#FFB68CFF</color>
+    <color name="ime_on_primary">#FF0B1033</color>
+    <color name="ime_record">#FFFF6B78</color>
+    <color name="ime_record_end">#FFFFA070</color>
+    <color name="ime_track">#1FFFFFFF</color>
+    <color name="ime_track_selected">#33FFFFFF</color>
+</resources>
