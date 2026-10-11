@@ -85,7 +85,7 @@ object RuleBasedExtractor : FormExtractor {
         segment.replace(leadingConnectors, "").replace(trailingJunk, "").trim()
 
     // Speech recognition writes "priya at example dot com"; the field needs an address.
-    private fun formatFor(label: String, value: String): String {
+    internal fun formatFor(label: String, value: String): String {
         val l = label.lowercase()
         return when {
             "mail" in l -> value.replace(Regex("\\s+at\\s+", RegexOption.IGNORE_CASE), "@")

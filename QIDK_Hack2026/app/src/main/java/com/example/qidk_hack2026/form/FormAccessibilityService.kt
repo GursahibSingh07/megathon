@@ -40,13 +40,18 @@ class FormAccessibilityService : AccessibilityService() {
     private var lastTextSeen: String? = null
     private var lastQuestion = ""
 
+    private var bubble: BubbleOverlay? = null
+
     override fun onServiceConnected() {
         instance = this
+        bubble?.destroy()
+        bubble = BubbleOverlay(this)
         Log.d(TAG, "Form service connected")
     }
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         if (instance === this) instance = null
+        bubble?.destroy(); bubble = null
         return super.onUnbind(intent)
     }
 
@@ -81,6 +86,22 @@ class FormAccessibilityService : AccessibilityService() {
             fields.filter { it.id in keep }.map { if (it.id in choiceIds) it.copy(choice = true) else it },
             layout.filter { it.first == null || it.first in keep }.joinToString("\n") { it.second },
         )
+    }
+
+    /** Taps the first empty text field (or any text field) so the keyboard comes up for the user. */
+    suspend fun raiseKeyboard(): Boolean = withContext(Dispatchers.Main) {
+        val root = formRoot() ?: return@withContext false
+        val edits = mutableListOf<AccessibilityNodeInfo>()
+        fun walk(n: AccessibilityNodeInfo?, depth: Int) {
+            if (n == null || depth > 40) return
+            if (n.isEditable && n.isVisibleToUser) edits += n
+            for (i in 0 until n.childCount) walk(childAt(n, i), depth + 1)
+        }
+        walk(findWebView(root) ?: root, 0)
+        val target = edits.firstOrNull { it.text.isNullOrBlank() || it.isShowingHintText } ?: edits.firstOrNull()
+            ?: return@withContext false
+        target.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
     }
 
     private fun findWebView(n: AccessibilityNodeInfo?, depth: Int = 0): AccessibilityNodeInfo? {

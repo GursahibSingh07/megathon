@@ -13,4 +13,6 @@
     <color name="ime_record_end">#FFFF8A5C</color>
     <color name="ime_track">#14000000</color>
     <color name="ime_track_selected">#B3FFFFFF</color>
+    <color name="ime_good">#FF22B455</color>
+    <color name="ime_good_end">#FF5BE08A</color>
 </resources>

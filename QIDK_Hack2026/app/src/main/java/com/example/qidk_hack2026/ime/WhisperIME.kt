@@ -15,7 +15,9 @@ import com.example.qidk_hack2026.asr.DictationSession
 import com.example.qidk_hack2026.asr.ModelManager
 import com.example.qidk_hack2026.asr.NpuClient
 import com.example.qidk_hack2026.form.FillResult
-import com.example.qidk_hack2026.form.FormPipeline
+import com.example.qidk_hack2026.job.JobController
+import com.example.qidk_hack2026.job.JobStore
+import com.example.qidk_hack2026.job.Speaker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -45,6 +47,19 @@ class WhisperIME : InputMethodService() {
     private var resumeAfterPermission = false
 
     private lateinit var panel: KeyboardPanel
+
+    override fun onCreate() {
+        super.onCreate()
+        JobStore.init(this)
+        // Debug builds only: feed a transcript in as if it had just been spoken (adb shell am broadcast).
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            ContextCompat.registerReceiver(
+                this, debugSay, android.content.IntentFilter("com.example.qidk_hack2026.DEBUG_SAY"),
+                ContextCompat.RECEIVER_EXPORTED,
+            )
+        }
+    }
+
 
     override fun onCreateInputView(): View {
         formMode = prefs().getBoolean(PREF_FORM_MODE, false)
@@ -87,8 +102,14 @@ class WhisperIME : InputMethodService() {
         }
     }
 
+    override fun onWindowHidden() {
+        JobStore.setImeVisible(false)
+        super.onWindowHidden()
+    }
+
     override fun onWindowShown() {
         super.onWindowShown()
+        JobStore.setImeVisible(true)
         // Frosted glass: blur whatever is behind the panel (Android 12+, where the device allows it).
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             window.window?.apply {
@@ -111,12 +132,14 @@ class WhisperIME : InputMethodService() {
     }
 
     override fun onDestroy() {
+        runCatching { unregisterReceiver(debugSay) }
         cancelSession()
         scope.cancel()
         super.onDestroy()
     }
 
     private fun onActionClicked() {
+        Speaker.stop() // don't record the assistant's own question
         when {
             needsAccessibility -> {
                 needsAccessibility = false
@@ -177,18 +200,21 @@ class WhisperIME : InputMethodService() {
         val s = session ?: return
         session = null
         busy = true
+        if (formMode) JobStore.begin()
         panel.setState(KeyboardPanel.State.WORKING)
         panel.setStatus("Transcribing…")
         scope.launch {
             val text = runCatching { s.stop() }.getOrElse {
+                if (formMode) JobStore.abort()
                 busy = false
                 setIdle("Transcription failed. Tap to try again.")
                 return@launch
             }
             if (formMode && text.isNotBlank()) {
-                fillForm(text)
+                handleFormTranscript(text)
                 return@launch
             }
+            if (formMode) JobStore.abort()
             busy = false
             panel.setState(KeyboardPanel.State.IDLE)
             if (text.isNotBlank()) {
@@ -202,28 +228,53 @@ class WhisperIME : InputMethodService() {
         }
     }
 
+    private suspend fun handleFormTranscript(text: String) {
+        JobStore.ready(text)
+        if (JobStore.imeVisible.value) {
+            fillForm(text)
+        } else {
+            // The user left the form meanwhile; the bubble takes over and fills it when tapped.
+            busy = false
+            panel.setState(KeyboardPanel.State.IDLE)
+        }
+    }
+
+    private val debugSay = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: android.content.Context, i: Intent) {
+            val text = i.getStringExtra("text") ?: return
+            scope.launch {
+                busy = true
+                JobStore.begin()
+                if (i.getLongExtra("delay", 0) > 0) kotlinx.coroutines.delay(i.getLongExtra("delay", 0))
+                handleFormTranscript(text)
+            }
+        }
+    }
+
     private suspend fun fillForm(transcript: String) {
         panel.setStatus("Filling the form…")
         noAutoListenUntil = SystemClock.uptimeMillis() + AUTO_LISTEN_PAUSE_MS
-        val result = FormPipeline.run(transcript)
+        val result = JobController.fill(this, transcript)
         noAutoListenUntil = SystemClock.uptimeMillis() + AUTO_LISTEN_PAUSE_MS
         busy = false
         panel.setState(KeyboardPanel.State.IDLE)
 
-        val missing = result.missing.take(4).joinToString(", ") +
-            if (result.missing.size > 4) " and ${result.missing.size - 4} more" else ""
+        val job = JobStore.job.value
         when (result.status) {
             FillResult.Status.SERVICE_OFF -> {
                 needsAccessibility = true
-                setIdle("Turn on Whisper Form Filler in Accessibility settings to fill forms", "Open settings")
+                setIdle("Turn on Form access in Accessibility settings", "Open settings")
             }
             FillResult.Status.NO_FORM -> setIdle("No form found behind the keyboard. Tap to try again.")
             FillResult.Status.NOTHING_MATCHED ->
-                setIdle("Heard \"$transcript\" but matched no fields." + if (missing.isNotEmpty()) " Empty: $missing" else "")
+                setIdle("Heard \"$transcript\" but matched no fields." + if (result.missing.isNotEmpty()) " ${result.missing.size} still empty." else "")
             FillResult.Status.DONE -> setIdle(
-                "Filled ${result.filled} field(s)." +
-                    (if (result.failed > 0) " ${result.failed} failed." else "") +
-                    (if (missing.isNotEmpty()) " Still empty: $missing. Tap to speak the rest." else " All fields have a value."),
+                "Filled ${result.filled}." + (if (result.failed > 0) " ${result.failed} failed." else "") +
+                    when {
+                        job.missing.isEmpty() -> " The form is complete."
+                        job.asking != null -> " Next: ${job.asking}. Tap the mic, or say skip."
+                        else -> " ${job.missing.size} left to fill by hand."
+                    },
             )
         }
     }

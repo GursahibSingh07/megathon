@@ -1,153 +1,74 @@
 package com.example.qidk_hack2026
 
-import android.Manifest
-import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Bundle
-import android.provider.Settings
-import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import com.example.qidk_hack2026.asr.DictationSession
-import com.example.qidk_hack2026.asr.ModelManager
-import com.example.qidk_hack2026.asr.WhisperEngine
+import com.example.qidk_hack2026.job.JobStore
+import com.example.qidk_hack2026.ui.AppShell
+import com.example.qidk_hack2026.ui.SetupScreen
+import com.example.qidk_hack2026.ui.SetupState
+import com.example.qidk_hack2026.ui.components.GlassBackground
+import com.example.qidk_hack2026.ui.readSetup
 import com.example.qidk_hack2026.ui.theme.QIDK_Hack2026Theme
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.example.qidk_hack2026.ui.theme.ThemeMode
 
 class MainActivity : ComponentActivity() {
+    private var resumes by mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        debugLogShortcutIme() // TEMP-DEBUG
+        JobStore.init(this)
+        val prefs = getSharedPreferences("app", MODE_PRIVATE)
         setContent {
-            QIDK_Hack2026Theme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
-                    DictationScreen(Modifier.padding(padding))
+            var mode by remember { mutableStateOf(ThemeMode.load(this)) }
+            var setupDone by remember { mutableStateOf(prefs.getBoolean("setup_done", false)) }
+            var showSetup by remember { mutableStateOf(false) }
+            val setup by produceState(SetupState(), resumes) { value = readSetup(this@MainActivity) }
+            val job by JobStore.job.collectAsState()
+            val records by JobStore.records.collectAsState()
+
+            QIDK_Hack2026Theme(mode) {
+                AnimatedContent(
+                    !setupDone || showSetup,
+                    transitionSpec = { fadeIn(tween(380)) togetherWith fadeOut(tween(220)) },
+                    label = "root",
+                ) { inSetup ->
+                    if (inSetup) {
+                        GlassBackground {
+                            SetupScreen(setup, firstRun = !setupDone, onRefresh = { resumes++ }) {
+                                prefs.edit().putBoolean("setup_done", true).apply()
+                                setupDone = true
+                                showSetup = false
+                            }
+                        }
+                    } else {
+                        AppShell(
+                            job, records, mode, setup.remaining,
+                            onTheme = { mode = mode.next(); ThemeMode.save(this@MainActivity, mode) },
+                            onSetup = { showSetup = true },
+                        )
+                    }
                 }
             }
         }
     }
-}
 
-private enum class Phase { NoModel, Downloading, Loading, Idle }
-
-@Composable
-private fun DictationScreen(modifier: Modifier = Modifier) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val appContext = context.applicationContext
-    val scope = rememberCoroutineScope()
-
-    var phase by remember {
-        mutableStateOf(if (ModelManager.isReady(appContext)) Phase.Loading else Phase.NoModel)
-    }
-    var progress by remember { mutableFloatStateOf(0f) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var testField by remember { mutableStateOf("") }
-
-    // Load the model into memory as soon as it's on disk.
-    androidx.compose.runtime.LaunchedEffect(phase) {
-        if (phase == Phase.Loading) {
-            runCatching { WhisperEngine.load(appContext) }
-                .onSuccess { phase = Phase.Idle }
-                .onFailure { error = "Failed to load model: ${it.message}"; phase = Phase.NoModel }
-        }
-    }
-
-    Column(
-        modifier = modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text("Whisper dictation", style = MaterialTheme.typography.headlineSmall)
-        Text("Model: ${ModelManager.MODEL_NAME}", style = MaterialTheme.typography.bodySmall)
-
-        when (phase) {
-            Phase.NoModel -> Button(onClick = {
-                phase = Phase.Downloading; progress = 0f; error = null
-                scope.launch {
-                    runCatching {
-                        withContext(Dispatchers.IO) { ModelManager.download(appContext) { progress = it } }
-                    }.onSuccess { phase = Phase.Loading }
-                        .onFailure { error = "Download failed: ${it.message}"; phase = Phase.NoModel }
-                }
-            }) { Text("Download model (~180 MB)") }
-
-            Phase.Downloading -> {
-                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
-                Text("Downloading… ${(progress * 100).toInt()}%")
-            }
-
-            Phase.Loading -> Text("Loading model…")
-
-            Phase.Idle -> Text("Model ready. Tap the text box below, then use the keyboard's mic key.")
-        }
-
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-
-        Text("Keyboard setup", style = MaterialTheme.typography.titleSmall)
-        Text(
-            "1. Enable \"Whisper Voice Input\" and HeliBoard in system keyboard settings.\n" +
-                "2. Select HeliBoard as your keyboard; its mic key will switch to Whisper.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-        OutlinedButton(onClick = {
-            context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
-        }) { Text("Enable keyboards") }
-        OutlinedButton(onClick = {
-            (context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
-        }) { Text("Choose keyboard") }
-        OutlinedTextField(
-            value = testField, onValueChange = { testField = it },
-            label = { Text("Tap here, then use the keyboard's mic key") },
-            modifier = Modifier.fillMaxWidth().weight(1f),
-        )
-    }
-}
-
-
-// TEMP-DEBUG: what does Android report as voice shortcut IMEs? (the list HeliBoard uses)
-private fun android.content.Context.debugLogShortcutIme() {
-    try {
-        val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        val m = InputMethodManager::class.java.getMethod("getShortcutInputMethodsAndSubtypes")
-        val map = m.invoke(imm) as Map<*, *>
-        android.util.Log.w("SHORTCUTDBG", "shortcut IMEs: " + map.entries.joinToString { (k, v) ->
-            "${(k as android.view.inputmethod.InputMethodInfo).id}=${(v as List<*>).size}"
-        })
-        imm.enabledInputMethodList.forEach { imi ->
-            val subs = imm.getEnabledInputMethodSubtypeList(imi, true)
-            android.util.Log.w("SHORTCUTDBG", "${imi.id} enabledSubtypes=" + subs.joinToString { it.mode + "/" + it.locale })
-        }
-    } catch (e: Throwable) {
-        android.util.Log.w("SHORTCUTDBG", "failed", e)
+    override fun onResume() {
+        super.onResume()
+        resumes++
     }
 }
