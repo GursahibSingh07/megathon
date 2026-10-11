@@ -34,4 +34,4 @@ Thumbs.db
 
 # Ignore voice-input-master directory
 voice-input-master/
-```
+```__pycache__/
