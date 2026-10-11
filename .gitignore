@@ -16,3 +16,9 @@ local.properties
 
 # Build output in every module (the root-only /build above missed app/build and whisper/build)
 build/
+
+
+# Not part of this repo (nested repos / scratch)
+HeliBoard/
+QIDK_Hack2026/
+c/

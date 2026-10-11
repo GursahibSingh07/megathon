@@ -16,8 +16,12 @@ import com.example.qidk_hack2026.asr.ModelManager
 import com.example.qidk_hack2026.asr.NpuClient
 import com.example.qidk_hack2026.form.FillResult
 import com.example.qidk_hack2026.form.FormPipeline
+import com.example.qidk_hack2026.form.MissingFieldPrompt
+import com.example.qidk_hack2026.tts.PiperTts
 import com.example.qidk_hack2026.form.SlmFormExtractor
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -45,6 +49,13 @@ class WhisperIME : InputMethodService() {
     // Set when the user tapped the mic and was sent to the permission dialog; start once they return.
     private var resumeAfterPermission = false
 
+    // Retry loop for form mode: after each pass the empty fields are read aloud (Piper) and the mic
+    // reopens, until the form is complete, the user stops, or passes stop making progress.
+    private var speakJob: Job? = null
+    private var silenceJob: Job? = null
+    private var fruitlessRounds = 0
+    private var heardAnything = false
+
     private lateinit var panel: KeyboardPanel
 
     override fun onCreateInputView(): View {
@@ -55,12 +66,14 @@ class WhisperIME : InputMethodService() {
             // The mic always retries (the service or model may be there now); the button under the status
             // line is what sends the user to settings or the app.
             onMic = {
+                fruitlessRounds = 0
                 needsModel = false
                 needsAccessibility = false
                 onActionClicked()
             }
-            onHint = { onActionClicked() }
+            onHint = { fruitlessRounds = 0; onActionClicked() }
             onModeChanged = {
+                stopSpeaking()
                 // Switching mid-recording drops that recording; the new mode starts clean.
                 if (session?.isRecording == true) {
                     cancelSession()
@@ -71,6 +84,7 @@ class WhisperIME : InputMethodService() {
                 prefs().edit().putBoolean(PREF_FORM_MODE, formMode).apply()
             }
             onBack = {
+                stopSpeaking()
                 currentInputConnection?.finishComposingText()
                 switchBack()
                 cancelSession() // after switching, so the keyboard appears without waiting
@@ -105,6 +119,8 @@ class WhisperIME : InputMethodService() {
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
+        // Filling fields moves focus and restarts input; only a real exit ends the spoken prompt.
+        if (finishingInput) stopSpeaking()
         cancelSession()
         if (::panel.isInitialized) panel.setState(KeyboardPanel.State.IDLE) // stops the pulse animation
         currentInputConnection?.finishComposingText()
@@ -112,6 +128,7 @@ class WhisperIME : InputMethodService() {
     }
 
     override fun onDestroy() {
+        stopSpeaking()
         cancelSession()
         scope.cancel()
         super.onDestroy()
@@ -119,6 +136,10 @@ class WhisperIME : InputMethodService() {
 
     private fun onActionClicked() {
         when {
+            speakJob?.isActive == true -> { // tap while the question is being read: skip it and answer
+                stopSpeaking()
+                beginListening()
+            }
             needsAccessibility -> {
                 needsAccessibility = false
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -130,7 +151,7 @@ class WhisperIME : InputMethodService() {
         }
     }
 
-    private fun beginListening() {
+    private fun beginListening(autoStarted: Boolean = false) {
         if (busy) return
         if (!hasMicPermission()) {
             setIdle("Microphone permission needed", "Grant microphone access")
@@ -147,16 +168,19 @@ class WhisperIME : InputMethodService() {
                 return@launch
             }
             needsModel = false
-            startSession()
+            startSession(autoStarted)
         }
     }
 
-    private fun startSession() {
+    private fun startSession(autoStarted: Boolean = false) {
+        heardAnything = false
+        if (formMode) scope.launch { PiperTts.preload(this@WhisperIME) } // overlap voice load with the user speaking
         // Silence after speech ends the dictation, like a voice keyboard should.
         val s = DictationSession(
             this, scope,
             onAutoStop = { scope.launch { if (session?.isRecording == true) finishListening() } },
         ) {
+            if (it.isNotBlank()) heardAnything = true
             if (formMode) {
                 // The focused field belongs to the form; keep the live text in the panel instead.
                 panel.setStatus("Listening… $it")
@@ -169,6 +193,13 @@ class WhisperIME : InputMethodService() {
             session = s
             panel.setState(KeyboardPanel.State.LISTENING)
             panel.setStatus(if (formMode) "Listening… say the details for the form" else "Listening…")
+            if (autoStarted) {
+                // Nobody answered the question: end this pass instead of listening forever.
+                silenceJob = scope.launch {
+                    delay(NO_ANSWER_TIMEOUT_MS)
+                    if (session === s && !heardAnything) finishListening()
+                }
+            }
         } else {
             setIdle("Couldn't open the microphone. Tap to try again.")
         }
@@ -176,6 +207,7 @@ class WhisperIME : InputMethodService() {
 
     private fun finishListening() {
         val s = session ?: return
+        silenceJob?.cancel()
         session = null
         busy = true
         panel.setState(KeyboardPanel.State.WORKING)
@@ -219,14 +251,46 @@ class WhisperIME : InputMethodService() {
                 setIdle("Turn on Whisper Form Filler in Accessibility settings to fill forms", "Open settings")
             }
             FillResult.Status.NO_FORM -> setIdle("No form found behind the keyboard. Tap to try again.")
-            FillResult.Status.NOTHING_MATCHED ->
+            FillResult.Status.NOTHING_MATCHED -> {
                 setIdle("Heard \"$transcript\" but matched no fields." + if (missing.isNotEmpty()) " Empty: $missing" else "")
+                askForMissing(result)
+            }
             FillResult.Status.DONE -> setIdle(
                 "Filled ${result.filled} field(s) (${if (result.usedSlm) "AI" else "rule-based fallback"})." +
                     (if (result.failed > 0) " ${result.failed} failed." else "") +
                     (if (missing.isNotEmpty()) " Still empty: $missing. Tap to speak the rest." else " All fields have a value."),
-            )
+            ).also { askForMissing(result) }
         }
+    }
+
+    /**
+     * The retry loop: read the still-empty fields aloud, then listen for the answer. Only ever asks;
+     * submitting the form is left to the user.
+     */
+    private fun askForMissing(result: FillResult) {
+        fruitlessRounds = if (result.filled > 0) 0 else fruitlessRounds + 1
+        val (text, listenAfter) = when {
+            result.missing.isEmpty() -> MissingFieldPrompt.allDone() to false
+            fruitlessRounds > MAX_FRUITLESS_ROUNDS -> MissingFieldPrompt.givingUp() to false
+            else -> MissingFieldPrompt.ask(result.missing, didntCatch = result.filled == 0) to true
+        }
+        if (!PiperTts.isAvailable(this)) return // no voice bundled: the text status above is all there is
+        speakJob?.cancel()
+        speakJob = scope.launch {
+            // Tell the user what is being read; the mic stays tappable to cut it short.
+            panel.setStatus(text)
+            val spoken = PiperTts.speak(this@WhisperIME, text)
+            if (spoken && listenAfter && !busy && session == null && hasMicPermission()) {
+                beginListening(autoStarted = true)
+            }
+        }
+    }
+
+    private fun stopSpeaking() {
+        speakJob?.cancel()
+        speakJob = null
+        silenceJob?.cancel()
+        PiperTts.stop()
     }
 
     private fun prefs() = getSharedPreferences("ime", MODE_PRIVATE)
@@ -273,6 +337,8 @@ class WhisperIME : InputMethodService() {
     private companion object {
         const val PREF_FORM_MODE = "form_mode"
         const val AUTO_LISTEN_PAUSE_MS = 4_000L
+        const val MAX_FRUITLESS_ROUNDS = 2
+        const val NO_ANSWER_TIMEOUT_MS = 10_000L
         const val BLUR_RADIUS_PX = 60
     }
 }

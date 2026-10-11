@@ -18,6 +18,8 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // The target boards are arm64, and QNN/HTP only exists for arm64.
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     buildTypes {
@@ -51,10 +53,21 @@ android {
             useLegacyPackaging = true
         }
     }
+    // The .onnx models are read from the asset file (copyAsset), keep them uncompressed.
+    androidResources {
+        noCompress += listOf("onnx")
+    }
 }
 
 dependencies {
     implementation(project(":whisper"))
+    // Piper TTS (reads the still-empty form fields aloud): decoder on the Hexagon NPU via ORT's QNN
+    // provider, CPU fallback. Models live in assets/tts.
+    // GenieX already bundles a newer QNN runtime (2.45, same .so names), so drop ORT's own copy
+    // (2.33) rather than ship two; ORT's QNN provider dlopens libQnnHtp.so from nativeLibraryDir.
+    implementation(libs.onnxruntime.android.qnn) {
+        exclude(group = "com.qualcomm.qti", module = "qnn-runtime")
+    }
     // On-device SLM backing SlmFormExtractor (Qwen3-0.6B-GGUF over GenieX's llama_cpp runtime).
     implementation("com.qualcomm.qti:geniex-android:0.3.5")
     implementation(libs.kotlinx.coroutines.android)
