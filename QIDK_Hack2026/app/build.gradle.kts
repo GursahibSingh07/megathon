@@ -34,11 +34,20 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        // QNN loads its backend libs (libQnnHtp*.so) by file path, so they must be extracted to disk.
+        jniLibs.useLegacyPackaging = true
+    }
+    androidResources {
+        noCompress += listOf("onnx")
+    }
 }
 
 dependencies {
     implementation(project(":whisper"))
     implementation(libs.kotlinx.coroutines.android)
+    // Piper TTS: decoder on the Hexagon NPU via ORT's QNN provider, CPU fallback. Models in assets/tts.
+    implementation(libs.onnxruntime.android.qnn)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
