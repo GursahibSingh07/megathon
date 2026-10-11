@@ -18,6 +18,7 @@ import com.example.qidk_hack2026.form.FillResult
 import com.example.qidk_hack2026.job.JobController
 import com.example.qidk_hack2026.job.JobStore
 import com.example.qidk_hack2026.job.Speaker
+import com.example.qidk_hack2026.tts.PiperTts
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -174,6 +175,7 @@ class WhisperIME : InputMethodService() {
     }
 
     private fun startSession() {
+        if (formMode) scope.launch { PiperTts.preload(this@WhisperIME) } // overlap voice load with the user speaking
         // Silence after speech ends the dictation, like a voice keyboard should.
         val s = DictationSession(
             this, scope,

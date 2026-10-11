@@ -10,7 +10,10 @@ class RuleBasedExtractorTest {
         ScreenField(id, FieldKind.INPUT, label, current = current)
 
     private fun option(id: Int, label: String, group: String, selected: Boolean = false) =
-        ScreenField(id, FieldKind.OPTION, label, group = group, selected = selected)
+        ScreenField(id, FieldKind.OPTION, label, group = group, selected = selected, choice = true)
+
+    private fun dropdown(id: Int, label: String, current: String = "") =
+        ScreenField(id, FieldKind.DROPDOWN, label, current = current)
 
     private fun screen(vararg f: ScreenField) = ScreenSnapshot(f.toList(), "")
 
@@ -80,5 +83,32 @@ class RuleBasedExtractorTest {
     fun nothingMatchedGivesNoActions() {
         assertTrue(RuleBasedExtractor.extract("the weather is nice today", incidentForm).isEmpty())
         assertTrue(RuleBasedExtractor.extract("   ", incidentForm).isEmpty())
+    }
+
+    @Test
+    fun dropdownLabelBecomesASelectAction() {
+        val form = screen(input(0, "Location"), dropdown(1, "Country", current = "India"))
+        val actions = RuleBasedExtractor.extract("location Mumbai, country United States", form)
+        assertEquals(
+            listOf<FormAction>(FormAction.Type(0, "Mumbai"), FormAction.Select(1, "United States")),
+            actions,
+        )
+    }
+
+    @Test
+    fun dropdownAndInputsFillFromOneNarration() {
+        val form = screen(input(0, "Email"), dropdown(1, "Severity"), input(2, "Description"))
+        val actions = RuleBasedExtractor.extract(
+            "email priya at example dot com, severity high, description water leak",
+            form,
+        )
+        assertEquals(
+            listOf<FormAction>(
+                FormAction.Type(0, "priya@example.com"),
+                FormAction.Select(1, "high"),
+                FormAction.Type(2, "water leak"),
+            ),
+            actions,
+        )
     }
 }

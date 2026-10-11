@@ -1,6 +1,6 @@
 package com.example.qidk_hack2026.form
 
-enum class FieldKind { INPUT, OPTION }
+enum class FieldKind { INPUT, OPTION, DROPDOWN }
 
 /**
  * One thing on the screen the user could fill in or pick.
@@ -24,6 +24,7 @@ data class ScreenField(
 data class ScreenSnapshot(val fields: List<ScreenField>, val layoutText: String) {
     val inputs get() = fields.filter { it.kind == FieldKind.INPUT }
     val options get() = fields.filter { it.kind == FieldKind.OPTION }
+    val dropdowns get() = fields.filter { it.kind == FieldKind.DROPDOWN }
 }
 
 sealed class FormAction {
@@ -31,6 +32,8 @@ sealed class FormAction {
 
     data class Type(override val targetId: Int, val text: String) : FormAction()
     data class Click(override val targetId: Int) : FormAction()
+    /** Opens a DROPDOWN field and picks the item whose text matches [value]. */
+    data class Select(override val targetId: Int, val value: String) : FormAction()
 }
 
 data class ExecReport(val attempted: Int, val succeeded: Int, val failedIds: List<Int>)
@@ -52,7 +55,8 @@ object ScreenTidy {
      * @param choiceIds ids that are real radio/checkbox/switch controls (not just clickable text)
      */
     fun tidy(fields: List<ScreenField>, choiceIds: Set<Int>): List<ScreenField> {
-        val inputLabels = fields.filter { it.kind == FieldKind.INPUT }.map { norm(it.label) }.filter { it.isNotEmpty() }.toSet()
+        val inputLabels = fields.filter { it.kind == FieldKind.INPUT || it.kind == FieldKind.DROPDOWN }
+            .map { norm(it.label) }.filter { it.isNotEmpty() }.toSet()
 
         // A clickable <label> sitting next to its input is the input's name, not a choice.
         val withoutLabels = fields.filterNot {

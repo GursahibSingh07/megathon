@@ -11,12 +11,15 @@ android {
 
     defaultConfig {
         applicationId = "com.example.qidk_hack2026"
-        minSdk = 26
+        // GenieX (SlmFormExtractor's on-device LLM) requires 31+, same floor geniex_chat_android uses.
+        minSdk = 31
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // The target boards are arm64, and QNN/HTP only exists for arm64.
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     buildTypes {
@@ -35,7 +38,8 @@ android {
         compose = true
     }
     packaging {
-        // QNN loads its backend libs (libQnnHtp*.so) by file path, so they must be extracted to disk.
+        // QNN (Piper) and GenieX load their native libs by file path (std::filesystem can't resolve a path
+        // inside the APK zip), so they must be extracted to disk.
         jniLibs.useLegacyPackaging = true
     }
     androidResources {
@@ -47,7 +51,13 @@ dependencies {
     implementation(project(":whisper"))
     implementation(libs.kotlinx.coroutines.android)
     // Piper TTS: decoder on the Hexagon NPU via ORT's QNN provider, CPU fallback. Models in assets/tts.
-    implementation(libs.onnxruntime.android.qnn)
+    // GenieX already bundles a newer QNN runtime (2.45, same .so names), so drop ORT's own copy
+    // (2.33) rather than ship two; ORT's QNN provider dlopens libQnnHtp.so from nativeLibraryDir.
+    implementation(libs.onnxruntime.android.qnn) {
+        exclude(group = "com.qualcomm.qti", module = "qnn-runtime")
+    }
+    // On-device SLM backing SlmFormExtractor (llama_cpp runtime over GenieX).
+    implementation("com.qualcomm.qti:geniex-android:0.3.5")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)

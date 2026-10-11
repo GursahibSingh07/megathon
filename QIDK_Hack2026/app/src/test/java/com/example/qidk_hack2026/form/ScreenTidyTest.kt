@@ -52,4 +52,11 @@ class ScreenTidyTest {
         val fields = listOf(input(0, "Location"), option(1, "Submit"), option(2, "High", "Severity"))
         assertEquals(listOf(0, 1, 2), ScreenTidy.tidy(fields, setOf(2)).map { it.id })
     }
+
+    @Test
+    fun clickableLabelNextToItsDropdownIsNotAChoice() {
+        val dropdown = ScreenField(1, FieldKind.DROPDOWN, "Country")
+        val fields = listOf(option(0, "Country"), dropdown)
+        assertEquals(listOf(1), ScreenTidy.tidy(fields, emptySet()).map { it.id })
+    }
 }

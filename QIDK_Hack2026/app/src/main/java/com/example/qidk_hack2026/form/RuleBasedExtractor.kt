@@ -14,7 +14,7 @@ object RuleBasedExtractor : FormExtractor {
 
     override suspend fun plan(transcript: String, screen: ScreenSnapshot) = extract(transcript, screen)
 
-    private class Anchor(val range: IntRange, val inputId: Int?, val group: String?)
+    private class Anchor(val range: IntRange, val fieldId: Int?, val group: String?)
 
     fun extract(transcript: String, screen: ScreenSnapshot): List<FormAction> {
         if (transcript.isBlank()) return emptyList()
@@ -26,10 +26,15 @@ object RuleBasedExtractor : FormExtractor {
             val end = anchors.getOrNull(i + 1)?.range?.first ?: transcript.length
             val segment = transcript.substring(anchor.range.last + 1, end)
 
-            if (anchor.inputId != null) {
-                val field = screen.fields.first { it.id == anchor.inputId }
+            if (anchor.fieldId != null) {
+                val field = screen.fields.first { it.id == anchor.fieldId }
                 val value = formatFor(field.label, cleanValue(segment))
-                if (value.isNotEmpty()) actions += FormAction.Type(field.id, value)
+                if (value.isNotEmpty()) {
+                    actions += when (field.kind) {
+                        FieldKind.DROPDOWN -> FormAction.Select(field.id, value)
+                        else -> FormAction.Type(field.id, value)
+                    }
+                }
             } else if (anchor.group != null) {
                 actions += clicksFor(screen.options.filter { it.group == anchor.group }, segment)
             }
@@ -47,8 +52,8 @@ object RuleBasedExtractor : FormExtractor {
 
     private fun findAnchors(transcript: String, screen: ScreenSnapshot): List<Anchor> {
         val candidates = mutableListOf<Anchor>()
-        for (input in screen.inputs) {
-            findPhrase(transcript, input.label)?.let { candidates += Anchor(it, input.id, null) }
+        for (field in screen.inputs + screen.dropdowns) {
+            findPhrase(transcript, field.label)?.let { candidates += Anchor(it, field.id, null) }
         }
         for (group in screen.options.map { it.group }.filter { it.isNotBlank() }.distinct()) {
             findPhrase(transcript, group)?.let { candidates += Anchor(it, null, group) }
@@ -99,8 +104,10 @@ object RuleBasedExtractor : FormExtractor {
 
     // ---- options ----
 
+    // Only a real radio/checkbox/switch may be clicked by voice — never a plain button
+    // such as Submit/Send/Done, which [ScreenField.choice] marks false.
     private fun clicksFor(options: List<ScreenField>, segment: String): List<FormAction> =
-        options.filter { !it.selected && labelSpoken(it.label, segment) }.map { FormAction.Click(it.id) }
+        options.filter { it.choice && !it.selected && labelSpoken(it.label, segment) }.map { FormAction.Click(it.id) }
 
     private fun labelSpoken(label: String, text: String): Boolean {
         val clean = label.trim()

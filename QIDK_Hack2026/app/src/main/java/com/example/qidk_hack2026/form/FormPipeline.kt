@@ -14,6 +14,9 @@ data class FillResult(
     val failed: Int = 0,
     /** Input fields still empty afterwards: what the assistant should ask about next. */
     val missing: List<String> = emptyList(),
+    /** True when [SlmFormExtractor]'s model actually produced the actions, false for the
+     *  [RuleBasedExtractor] fallback (model unavailable, generation failed, or output unusable). */
+    val usedSlm: Boolean = false,
     /** What went into the form this pass, as label and value. */
     val entries: List<com.example.qidk_hack2026.job.Entry> = emptyList(),
     /** A name for the form, from what the page shows. */
@@ -49,9 +52,12 @@ object FormPipeline {
         Log.d(TAG, "ACTIONS for \"$transcript\": $actions")
         val report = if (actions.isEmpty()) ExecReport(0, 0, emptyList()) else service.execute(actions)
 
-        val filledInputs = actions.filterIsInstance<FormAction.Type>().map { it.targetId }.toSet() - report.failedIds.toSet()
-        val missing = screen.inputs
-            .filter { it.current.isBlank() && it.id !in filledInputs }
+        val filledFields = (
+            actions.filterIsInstance<FormAction.Type>().map { it.targetId } +
+                actions.filterIsInstance<FormAction.Select>().map { it.targetId }
+            ).toSet() - report.failedIds.toSet()
+        val missing = (screen.inputs + screen.dropdowns)
+            .filter { it.current.isBlank() && it.id !in filledFields }
             .map { it.label.ifBlank { "field ${it.id}" } }
 
         return FillResult(
@@ -59,6 +65,7 @@ object FormPipeline {
             filled = report.succeeded,
             failed = report.failedIds.size,
             missing = missing,
+            usedSlm = (extractor as? SlmFormExtractor)?.lastUsedSlm ?: false,
             entries = entriesFor(actions, screen, report.failedIds.toSet()),
             title = titleOf(screen),
         )
@@ -99,6 +106,7 @@ object FormPipeline {
             val f = screen.fields.firstOrNull { it.id == a.targetId } ?: return@mapNotNull null
             when (a) {
                 is FormAction.Type -> com.example.qidk_hack2026.job.Entry(f.label.ifBlank { "Field" }, a.text)
+                is FormAction.Select -> com.example.qidk_hack2026.job.Entry(f.label.ifBlank { "Choice" }, a.value)
                 is FormAction.Click -> com.example.qidk_hack2026.job.Entry(f.group.ifBlank { "Choice" }, f.label)
             }
         }

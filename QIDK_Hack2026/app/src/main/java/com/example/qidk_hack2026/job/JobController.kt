@@ -4,6 +4,7 @@ import android.content.Context
 import com.example.qidk_hack2026.form.FillResult
 import com.example.qidk_hack2026.form.FormAccessibilityService
 import com.example.qidk_hack2026.form.FormPipeline
+import com.example.qidk_hack2026.form.SlmFormExtractor
 
 /**
  * What happens between "the user said something" and "the form is filled and the gaps are asked about".
@@ -30,7 +31,7 @@ object JobController {
             return FillResult(FillResult.Status.DONE, missing = job.missing)
         }
 
-        var result = FormPipeline.run(transcript)
+        var result = FormPipeline.run(transcript, SlmFormExtractor.get(app))
         if (result.status == FillResult.Status.NOTHING_MATCHED && asking != null) {
             result = FormPipeline.fillField(asking, transcript)
         }

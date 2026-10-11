@@ -31,6 +31,22 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
+    // ggml's own CMake build produces these generic shared libs alongside libwhisper*.so. The
+    // GenieX AAR (app's dependency, for SlmFormExtractor's llama_cpp plugin) bundles its own
+    // same-named copies that its other plugins must stay consistent with, so defer to those
+    // instead of letting :app's packaging hit a "2 files found" merge conflict over this module's
+    // copies.
+    packaging {
+        jniLibs {
+            excludes += setOf(
+                "**/libggml.so",
+                "**/libggml-base.so",
+                "**/libggml-cpu.so",
+                "**/libomp.so",
+            )
+        }
+    }
 }
 
 dependencies {

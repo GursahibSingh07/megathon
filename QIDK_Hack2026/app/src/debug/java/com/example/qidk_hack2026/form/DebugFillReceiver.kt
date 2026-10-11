@@ -17,7 +17,7 @@ class DebugFillReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.Default).launch {
             try {
-                val result = FormPipeline.run(text)
+                val result = FormPipeline.run(text, SlmFormExtractor.get(context))
                 Log.i("FormDebug", "RESULT text=\"$text\" -> $result")
             } catch (e: Exception) {
                 Log.e("FormDebug", "pipeline threw", e)

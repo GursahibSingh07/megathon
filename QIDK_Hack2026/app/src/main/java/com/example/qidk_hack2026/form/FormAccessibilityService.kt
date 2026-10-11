@@ -82,10 +82,18 @@ class FormAccessibilityService : AccessibilityService() {
         val keep = ScreenTidy.tidy(fields, choiceIds).map { it.id }.toSet()
         nodes.keys.retainAll(keep)
         kinds.keys.retainAll(keep)
+        choiceIds.retainAll(keep)
         return ScreenSnapshot(
             fields.filter { it.id in keep }.map { if (it.id in choiceIds) it.copy(choice = true) else it },
             layout.filter { it.first == null || it.first in keep }.joinToString("\n") { it.second },
         )
+    }
+
+    private fun findWebView(n: AccessibilityNodeInfo?, depth: Int = 0): AccessibilityNodeInfo? {
+        if (n == null || depth > 30) return null
+        if (n.className?.toString() == "android.webkit.WebView" && n.childCount > 0) return n
+        for (i in 0 until n.childCount) findWebView(childAt(n, i), depth + 1)?.let { return it }
+        return null
     }
 
     /** Taps the first empty text field (or any text field) so the keyboard comes up for the user. */
@@ -104,13 +112,6 @@ class FormAccessibilityService : AccessibilityService() {
         target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
     }
 
-    private fun findWebView(n: AccessibilityNodeInfo?, depth: Int = 0): AccessibilityNodeInfo? {
-        if (n == null || depth > 30) return null
-        if (n.className?.toString() == "android.webkit.WebView" && n.childCount > 0) return n
-        for (i in 0 until n.childCount) findWebView(childAt(n, i), depth + 1)?.let { return it }
-        return null
-    }
-
     /** Runs [actions] against the nodes from the last [scan], pausing between steps so the page can react. */
     suspend fun execute(actions: List<FormAction>): ExecReport {
         val failed = mutableListOf<Int>()
@@ -120,7 +121,10 @@ class FormAccessibilityService : AccessibilityService() {
             val kind = kinds[action.targetId]
             val valid = node != null && when (action) {
                 is FormAction.Type -> kind == FieldKind.INPUT
-                is FormAction.Click -> kind == FieldKind.OPTION
+                // Never click a plain button (Submit/Send/Done/...) — only a real
+                // radio/checkbox/switch toggle may be clicked by voice.
+                is FormAction.Click -> kind == FieldKind.OPTION && action.targetId in choiceIds
+                is FormAction.Select -> kind == FieldKind.DROPDOWN
             }
             if (!valid) {
                 failed += action.targetId
@@ -128,12 +132,18 @@ class FormAccessibilityService : AccessibilityService() {
             }
             val done = withContext(Dispatchers.Main) {
                 try {
-                    node!!.refresh()
+                    // The scan can be seconds stale by the time we get here (SLM latency); a
+                    // screen reflow in the meantime can leave this node pointing at nothing.
+                    if (!node!!.refresh()) {
+                        Log.w(TAG, "Node for ID ${action.targetId} went stale before executing")
+                        return@withContext false
+                    }
                     node.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id)
                     when (action) {
                         is FormAction.Type -> typeInto(node, action.text)
                         // Clicking a ticked checkbox would un-tick it.
                         is FormAction.Click -> node.isChecked || clickNode(node)
+                        is FormAction.Select -> selectDropdown(node, action.value)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Action on ID ${action.targetId} failed", e)
@@ -183,6 +193,16 @@ class FormAccessibilityService : AccessibilityService() {
         val cls = n.className?.toString() ?: ""
         if (cls.contains("RadioButton") || cls.contains("CheckBox") || cls.contains("Switch")) return true
         return chromeRole(n) in CHOICE_ROLES
+    }
+
+    // Spinner, Material's AutoCompleteTextView-based "exposed dropdown menu", or a web
+    // <select>/ARIA combobox/listbox: picking a value opens a popup of choices instead of
+    // taking typed text or toggling in place.
+    private fun isDropdown(n: AccessibilityNodeInfo?): Boolean {
+        if (n == null) return false
+        val cls = n.className?.toString() ?: ""
+        if (cls.contains("Spinner") || cls.contains("AutoCompleteTextView")) return true
+        return chromeRole(n) in DROPDOWN_ROLES
     }
 
     // Something the user can actually press
@@ -260,7 +280,19 @@ class FormAccessibilityService : AccessibilityService() {
 
         val cleanText = cleanTextOf(node)
 
-        if (node.isEditable || node.className?.contains("EditText") == true) {
+        if (isDropdown(node)) {
+            // 0. Dropdown: its own text is the currently selected value, not the question — the
+            // question is whatever label text came right before it, same as an input's hint.
+            val id = nextId++
+            nodes[id] = node
+            kinds[id] = FieldKind.DROPDOWN
+            val current = cleanText ?: firstTextIn(node) ?: ""
+            val label = node.contentDescription?.toString() ?: lastTextSeen ?: current
+            fields += ScreenField(id, FieldKind.DROPDOWN, label.trim(), current = current)
+            layout += id to "[ID: $id] DROPDOWN label=\"$label\" current=\"$current\""
+            lastTextSeen = label
+            return // its children are the selected-value text / icon, not separate fields
+        } else if (node.isEditable || node.className?.contains("EditText") == true) {
             // 1. Input field
             val id = nextId++
             nodes[id] = node
@@ -420,6 +452,57 @@ class FormAccessibilityService : AccessibilityService() {
         return node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
     }
 
+    /** Opens [node]'s popup and taps the item whose text matches [value]. */
+    private suspend fun selectDropdown(node: AccessibilityNodeInfo, value: String): Boolean {
+        if (!clickNode(node)) return false
+        delay(DROPDOWN_OPEN_DELAY_MS)
+        val match = findDropdownItem(value, node)
+        if (match == null) {
+            Log.w(TAG, "No dropdown item matched \"$value\"; dismissing the popup")
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            return false
+        }
+        return clickNode(match)
+    }
+
+    /** Searches every window, topmost first, for a leaf whose text matches [value] — the popup a
+     *  dropdown opens is usually its own window, layered above the form. [exclude] keeps a failed
+     *  search from reporting the dropdown's own (closed) current-value text as a match. */
+    private fun findDropdownItem(value: String, exclude: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val target = norm(value)
+        if (target.isEmpty()) return null
+        val roots = windows.sortedByDescending { it.layer }.mapNotNull { it.root }
+            .ifEmpty { listOfNotNull(rootInActiveWindow) }
+        for (exact in listOf(true, false)) {
+            for (root in roots) {
+                findLeafText(root, target, exact, exclude)?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun findLeafText(
+        n: AccessibilityNodeInfo?,
+        target: String,
+        exact: Boolean,
+        exclude: AccessibilityNodeInfo,
+        depth: Int = 0,
+    ): AccessibilityNodeInfo? {
+        if (n == null || depth > 25 || n == exclude) return null
+        val text = cleanTextOf(n)
+        if (text != null) {
+            val t = norm(text)
+            val hit = if (exact) t == target else target.length >= 3 && t.contains(target)
+            if (hit) return n
+        }
+        for (i in 0 until n.childCount) {
+            findLeafText(childAt(n, i), target, exact, exclude, depth + 1)?.let { return it }
+        }
+        return null
+    }
+
+    private fun norm(s: String) = s.lowercase().replace(Regex("[^a-z0-9]+"), " ").trim()
+
     private fun tapNodeCenter(node: AccessibilityNodeInfo): Boolean {
         val bounds = Rect()
         node.getBoundsInScreen(bounds)
@@ -434,6 +517,9 @@ class FormAccessibilityService : AccessibilityService() {
     companion object {
         private const val TAG = "FormService"
         private const val STEP_DELAY_MS = 450L
+        // Letting the popup (dialog, dropdown list, Chrome's native picker) finish animating in
+        // before we search for the item to tap.
+        private const val DROPDOWN_OPEN_DELAY_MS = 350L
 
         // Chrome/WebView exposes the HTML/ARIA role in the node extras under this key
         private const val CHROME_ROLE_KEY = "AccessibilityNodeInfo.chromeRole"
@@ -442,9 +528,8 @@ class FormAccessibilityService : AccessibilityService() {
             "radiobutton", "radio", "checkbox", "switch",
             "menuitemradio", "menuitemcheckbox", "listboxoption", "togglebutton",
         )
-        private val INTERACTIVE_ROLES = CHOICE_ROLES + setOf(
-            "button", "link", "menuitem", "tab", "popupbutton", "combobox", "combobox_select",
-        )
+        private val DROPDOWN_ROLES = setOf("combobox", "combobox_select", "popupbutton", "listbox")
+        private val INTERACTIVE_ROLES = CHOICE_ROLES + DROPDOWN_ROLES + setOf("button", "link", "menuitem", "tab")
 
         /** The running service, or null when the user hasn't enabled it in Accessibility settings. */
         @Volatile

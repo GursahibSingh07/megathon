@@ -33,6 +33,16 @@ find_library(LOG_LIB log)
 
 include(FetchContent)
 
+# Link ggml statically into libwhisper*.so instead of producing standalone libggml*.so files.
+# The app also depends on the GenieX AAR, which bundles its own (differently built, non-ABI-
+# compatible — confirmed by a ggml_abort() crash in WhisperEngine.load() when the two were mixed
+# via packaging excludes) copies of libggml.so/libggml-base.so/libggml-cpu.so under the same
+# names. Static linking means whisper.cpp carries a private copy with no shared filename, so the
+# two coexist with zero risk of symbol/version cross-talk, and don't require an APK-packaging
+# pick between them. Our own add_library(${target_name} SHARED ...) calls below are unaffected
+# since they pass SHARED explicitly.
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
 function(build_library target_name)
     add_library(
         ${target_name}
@@ -88,7 +98,6 @@ include_directories(${WHISPER_LIB_DIR}/ggml/include)
 include_directories(${WHISPER_LIB_DIR}/ggml/src)
 include_directories(${WHISPER_LIB_DIR}/ggml/src/ggml-cpu)
 
-
 # ---- NPU daemon (Whisper-Small on the Hexagon NPU through the Qualcomm AI Runtime) ----
 # Regular Android apps cannot reach the NPU on QIDK builds (libcdsprpc.so is not a public library), so
 # the engine is built as an executable that runs outside the app sandbox and serves the app over a
@@ -110,3 +119,4 @@ if (${ANDROID_ABI} STREQUAL "arm64-v8a" AND EXISTS ${QAIRT_INCLUDE}/QnnInterface
 else ()
     message(STATUS "QAIRT headers not found; skipping the NPU daemon (CPU transcription only)")
 endif ()
+
